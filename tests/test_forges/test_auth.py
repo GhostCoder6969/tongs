@@ -92,7 +92,7 @@ class TestResolveToken:
 class TestTokenFromCli:
     def test_cli_returns_token_on_success(self):
         result = subprocess.CompletedProcess(
-            args=["glab", "auth", "token", "--hostname", "gitlab.com"],
+            args=["glab", "config", "get", "token", "--host", "gitlab.com"],
             returncode=0,
             stdout="glpat-abc123\n",
             stderr="",
@@ -103,7 +103,7 @@ class TestTokenFromCli:
 
     def test_cli_returns_none_on_nonzero_exit(self):
         result = subprocess.CompletedProcess(
-            args=["glab", "auth", "token", "--hostname", "gitlab.com"],
+            args=["glab", "config", "get", "token", "--host", "gitlab.com"],
             returncode=1,
             stdout="",
             stderr="not logged in",
@@ -113,7 +113,7 @@ class TestTokenFromCli:
 
     def test_cli_returns_none_on_empty_stdout(self):
         result = subprocess.CompletedProcess(
-            args=["glab", "auth", "token", "--hostname", "gitlab.com"],
+            args=["glab", "config", "get", "token", "--host", "gitlab.com"],
             returncode=0,
             stdout="   \n",
             stderr="",
@@ -144,9 +144,10 @@ class TestTokenFromCli:
         cmd = mock_run.call_args[0][0]
         assert cmd == [
             "glab",
-            "auth",
+            "config",
+            "get",
             "token",
-            "--hostname",
+            "--host",
             "gitlab.cee.redhat.com",
         ]
 

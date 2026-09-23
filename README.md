@@ -90,7 +90,7 @@ glab auth login
 glab auth login --hostname gitlab.example.com
 ```
 
-tongs never stores your tokens. It delegates to `gh auth token` / `glab auth token` at runtime, falling back to `~/.netrc` and then the system keyring (if the optional `keyring` package is installed).
+tongs never stores your tokens. It delegates to `gh auth token` / `glab config get token` at runtime, falling back to `~/.netrc` and then the system keyring (if the optional `keyring` package is installed).
 
 ## Features
 

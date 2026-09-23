@@ -91,7 +91,7 @@ API base URL patterns:
 
 `src/tongs/forges/auth.py:resolve_token(hostname, forge_type)`:
 
-1. **CLI credential store** -- `glab auth token --hostname {host}` or `gh auth token [--hostname {host}]`. Single subprocess call on lazy credential resolution for a host.
+1. **CLI credential store** -- `glab config get token --host {host}` or `gh auth token [--hostname {host}]`. Single subprocess call on lazy credential resolution for a host.
 2. **~/.netrc** -- reads with `netrc` stdlib. Enforces 0o600 permissions on POSIX, raises `AuthError` otherwise.
 3. **System keyring** -- optional `keyring.get_password("tongs", hostname)`
    lookup; absence or backend failure falls through safely.
@@ -100,7 +100,7 @@ API base URL patterns:
 
 Key details:
 - `gh auth token` omits `--hostname` for `github.com` (default), adds it for enterprise
-- `glab auth token` always includes `--hostname`
+- `glab config get token` always includes `--host`
 - Token is held in the `httpx.AsyncClient` session, never stored in cache or logs
 - Subprocess calls use `timeout=5`, catch `FileNotFoundError` (CLI not installed) and `TimeoutExpired`
 

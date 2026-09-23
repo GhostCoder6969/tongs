@@ -13,7 +13,7 @@ tongs is released from the 1.x series and follows semantic versioning. Security 
 
 tongs never stores authentication tokens. `resolve_token()` in `src/tongs/forges/auth.py` resolves one lazily per host through a four-step cascade:
 
-1. The forge CLI credential store, via `gh auth token` or `glab auth token --hostname <host>`.
+1. The forge CLI credential store, via `gh auth token` or `glab config get token --host <host>`.
 2. `~/.netrc` (`_netrc` on Windows), rejected on POSIX systems if any group or other read or write bit is set.
 3. The optional system keyring, under service name `tongs` and the hostname. This requires the optional `keyring` package; when it is absent or its backend fails, the step is skipped rather than fatal.
 4. A forge-specific `AuthError` naming the login command to run.

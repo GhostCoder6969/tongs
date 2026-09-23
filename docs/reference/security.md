@@ -12,7 +12,7 @@ Tongs never stores forge tokens. `resolve_token()` in
 cascade:
 
 1. The forge CLI credential store: `gh auth token` for GitHub, or
-   `glab auth token --hostname <host>` for GitLab. Enterprise GitHub hosts add
+   `glab config get token --host <host>` for GitLab. Enterprise GitHub hosts add
    `--hostname`.
 2. `~/.netrc` (`_netrc` on Windows). On POSIX systems tongs refuses the file and
    raises an error if any group or other read or write bit is set. `0600`

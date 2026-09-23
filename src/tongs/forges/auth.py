@@ -5,6 +5,7 @@ Cascade: CLI credential store -> .netrc -> keyring -> error with instructions.
 
 from __future__ import annotations
 
+import logging
 import netrc
 import stat
 import subprocess
@@ -14,12 +15,14 @@ from pathlib import Path
 from tongs.errors import AuthError
 from tongs.scanner.repo import ForgeType
 
+log = logging.getLogger(__name__)
+
 
 def resolve_token(hostname: str, forge_type: ForgeType) -> str:
     """Resolve an auth token for the given host.
 
     Tries in order:
-    1. CLI credential store (gh auth token / glab auth token)
+    1. CLI credential store (gh auth token / glab config get token)
     2. ~/.netrc
     3. System keyring (requires optional ``keyring`` package)
     4. Raises AuthError with setup instructions
@@ -57,7 +60,9 @@ def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
         if hostname != "github.com":
             cmd.extend(["--hostname", hostname])
     else:
-        cmd = ["glab", "auth", "token", "--hostname", hostname]
+        # glab has no `auth token` subcommand; `config get token` returns the
+        # stored credential, including OAuth and keyring-backed tokens.
+        cmd = ["glab", "config", "get", "token", "--host", hostname]
 
     try:
         result = subprocess.run(
@@ -71,6 +76,7 @@ def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
         return None
 
     if result.returncode != 0:
+        log.debug("%s exited with %d; skipping CLI token", cmd[0], result.returncode)
         return None
 
     token = result.stdout.strip()

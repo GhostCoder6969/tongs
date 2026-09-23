@@ -4,7 +4,7 @@
 
 `src/tongs/forges/auth.py:resolve_token()` resolves a token lazily per host:
 
-1. GitLab `glab auth token --hostname <host>` or GitHub `gh auth token`
+1. GitLab `glab config get token --host <host>` or GitHub `gh auth token`
    (`--hostname` for enterprise)
 2. `.netrc`, with owner-only permissions required on POSIX
 3. optional system keyring lookup under service `tongs` and the hostname
