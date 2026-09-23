@@ -28,6 +28,10 @@ Consequences:
   file. When a token comes from the keyring, the keyring owns it, not tongs.
 - Login, logout, and refresh remain the responsibility of the CLI or keyring that
   holds the credential.
+- When a request gets a 401, tongs re-resolves the token once through the same
+  cascade and retries. For GitLab it first runs `glab auth status --hostname
+  <host>`, which makes glab refresh and save an expired OAuth token. A second
+  401 is reported as an authentication error.
 - CLI credential reads use an argument vector with no shell, captured output, and
   a five-second timeout.
 - Tokens live only in process memory and the outgoing `Authorization` header.

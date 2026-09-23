@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 import httpx
 
@@ -21,18 +22,66 @@ from tongs.errors import (
 log = logging.getLogger(__name__)
 
 
+class RefreshingTokenAuth(httpx.Auth):
+    """Bearer auth that re-resolves the token once when a request gets a 401.
+
+    Short-lived credentials (such as glab OAuth tokens) expire during long
+    sessions. ``refresh`` is a blocking callable returning a new token, or
+    ``None`` when no better credential is available; it runs in a worker thread.
+    """
+
+    def __init__(self, token: str, refresh: Callable[[], str | None]):
+        self._token = token
+        self._refresh = refresh
+        self._lock = asyncio.Lock()
+
+    def sync_auth_flow(self, request: httpx.Request):
+        raise RuntimeError("RefreshingTokenAuth only supports async clients")
+
+    async def async_auth_flow(self, request: httpx.Request):
+        sent_token = self._token
+        request.headers["Authorization"] = f"Bearer {sent_token}"
+        response = yield request
+        if response.status_code != 401:
+            return
+
+        async with self._lock:
+            # Another request may already have refreshed the token.
+            if self._token == sent_token:
+                try:
+                    new_token = await asyncio.to_thread(self._refresh)
+                except ForgeError as e:
+                    log.debug("Token refresh failed: %s", e)
+                    new_token = None
+                if not new_token or new_token == sent_token:
+                    return
+                log.info("Retrying request with refreshed credentials")
+                self._token = new_token
+
+        request.headers["Authorization"] = f"Bearer {self._token}"
+        yield request
+
+
 def create_client(
     base_url: str,
     token: str,
     timeout: float = 30.0,
+    refresh: Callable[[], str | None] | None = None,
 ) -> httpx.AsyncClient:
-    """Create an authenticated async HTTP client for a forge API."""
+    """Create an authenticated async HTTP client for a forge API.
+
+    When ``refresh`` is given, a 401 triggers one token refresh and retry.
+    """
+    headers = {"Accept": "application/json"}
+    auth = None
+    if refresh is None:
+        headers["Authorization"] = f"Bearer {token}"
+    else:
+        auth = RefreshingTokenAuth(token, refresh)
     return httpx.AsyncClient(
         base_url=base_url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        },
+        auth=auth,
+        headers=headers,
         timeout=timeout,
         follow_redirects=True,
     )

@@ -11,7 +11,8 @@
 4. a forge-specific `AuthError`
 
 CLI calls use argument arrays, no shell, captured output, and a five-second
-timeout. Tokens live only in trusted Python memory and the `httpx.AsyncClient`
+timeout (fifteen seconds for the `glab auth status` refresh that runs after a
+401). Tokens live only in trusted Python memory and the `httpx.AsyncClient`
 Authorization header. Never put a token in configuration, environment variables,
 cache keys or values, protocol frames, renderer state, plugin manifests, logs,
 command arguments, or user-visible errors.

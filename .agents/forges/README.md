@@ -103,6 +103,7 @@ Key details:
 - `glab config get token` always includes `--host`
 - Token is held in the `httpx.AsyncClient` session, never stored in cache or logs
 - Subprocess calls use `timeout=5`, catch `FileNotFoundError` (CLI not installed) and `TimeoutExpired`
+- Clients from `ForgeRegistry` use `http.py:RefreshingTokenAuth`: on a 401 it calls `auth.py:refresh_token()` once (in a worker thread, serialized per client) and retries with the new token. For GitLab, `refresh_token()` first runs `glab auth status --hostname {host}` (15s timeout) because glab only refreshes expired OAuth tokens while making an API request
 
 ## GitLab Client
 

@@ -53,6 +53,24 @@ def resolve_token(hostname: str, forge_type: ForgeType) -> str:
     )
 
 
+def refresh_token(hostname: str, forge_type: ForgeType) -> str | None:
+    """Resolve a replacement token after the current one was rejected.
+
+    glab only refreshes an expired OAuth token when it makes an API request, so
+    run ``glab auth status`` (a GET /user) first; it persists the refreshed
+    token for the ``glab config get token`` lookup in :func:`resolve_token`.
+    Returns ``None`` when no credential can be resolved.
+    """
+    if forge_type == ForgeType.GITLAB:
+        _run_cli(["glab", "auth", "status", "--hostname", hostname], timeout=15)
+
+    try:
+        return resolve_token(hostname, forge_type)
+    except AuthError as e:
+        log.debug("Token refresh for %s failed: %s", hostname, e)
+        return None
+
+
 def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
     """Extract token from gh/glab CLI credential store."""
     if forge_type == ForgeType.GITHUB:
@@ -64,15 +82,8 @@ def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
         # stored credential, including OAuth and keyring-backed tokens.
         cmd = ["glab", "config", "get", "token", "--host", hostname]
 
-    try:
-        result = subprocess.run(
-            cmd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    result = _run_cli(cmd, timeout=5)
+    if result is None:
         return None
 
     if result.returncode != 0:
@@ -81,6 +92,20 @@ def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
 
     token = result.stdout.strip()
     return token if token else None
+
+
+def _run_cli(cmd: list[str], timeout: float) -> subprocess.CompletedProcess | None:
+    """Run a forge CLI command, returning ``None`` if it is missing or hangs."""
+    try:
+        return subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
 
 
 def _token_from_netrc(hostname: str) -> str | None:

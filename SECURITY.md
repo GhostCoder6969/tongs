@@ -18,6 +18,8 @@ tongs never stores authentication tokens. `resolve_token()` in `src/tongs/forges
 3. The optional system keyring, under service name `tongs` and the hostname. This requires the optional `keyring` package; when it is absent or its backend fails, the step is skipped rather than fatal.
 4. A forge-specific `AuthError` naming the login command to run.
 
+After a 401, tongs re-resolves the token once and retries the request. For GitLab it first runs `glab auth status --hostname <host>` so glab can refresh an expired OAuth token.
+
 This means:
 
 - No tokens are written to disk by tongs. A token held in the system keyring is owned by the keyring, not by tongs.

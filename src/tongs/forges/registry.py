@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 
-from tongs.forges.auth import resolve_token
+from tongs.forges.auth import refresh_token, resolve_token
 from tongs.forges.base import ForgeClient
 from tongs.forges.http import create_client
 from tongs.forges.models import ForgeHost
@@ -79,7 +80,12 @@ class ForgeRegistry:
             raise AuthError(f"Unknown forge host: {hostname}")
 
         token = resolve_token(hostname, host.forge_type)
-        http_client = create_client(host.api_base, token, self._timeout)
+        http_client = create_client(
+            host.api_base,
+            token,
+            self._timeout,
+            refresh=partial(refresh_token, hostname, host.forge_type),
+        )
 
         if host.forge_type == ForgeType.GITLAB:
             from tongs.forges.gitlab import GitLabClient
