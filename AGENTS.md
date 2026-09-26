@@ -99,7 +99,7 @@ from native Fedora, GPU, installer, and release evidence.
 
 ## Module Map
 
-```
+```text
 src/tongs/
   __main__.py              # CLI entry, argument routing, and desktop subcommand dispatch
   app.py, tui_services.py  # Textual app and adapter over shared services

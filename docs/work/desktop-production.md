@@ -462,8 +462,8 @@ so S40 counts once as a pass at `55f4c0d` while its failure at `810bf80` stays
 in the row: **27 pass**, 1 fail, 1 partial, 4 covered by another scenario, 2 not
 exercised, **49 not run**, summing to the 84 planned scenarios.
 
-Fixes confirmed by observation during the session: #167, #168, #169, #171 and
-#176, plus the #181 review redesign and, at `55f4c0d`, #225.
+Fixes confirmed by observation during the session: #167, #168, #169, #171
+and #176, plus the #181 review redesign and, at `55f4c0d`, #225.
 
 Two scenario subjects were changed because the GitHub fixtures could not carry
 them: S34 moved to GitLab MR 7 because every GitHub fixture pull request has one

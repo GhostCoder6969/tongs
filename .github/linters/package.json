@@ -1,0 +1,8 @@
+{
+  "name": "tongs-markdown-linters",
+  "private": true,
+  "description": "Pinned Markdown linter for the CI docs lane; install with npm ci.",
+  "devDependencies": {
+    "markdownlint-cli2": "0.23.3"
+  }
+}

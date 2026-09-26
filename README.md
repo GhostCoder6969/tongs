@@ -133,7 +133,7 @@ The terminal TUI remains the default interface. The desktop workspace is an
 unreleased optional interface over the same repositories, reviews, and drafts,
 documented in the [desktop workspace guide](docs/desktop/workspace.md). It has
 its own installation path, described in
-[Desktop application](#desktop-application-unreleased) below.
+[Desktop application](#desktop-application) below.
 
 The desktop sidebar scans the configured local `scan_root` and `scan_depth`.
 It supports display-name search, GitHub/GitLab filtering, and Name, Forge, or
@@ -420,39 +420,39 @@ tongs uses a plugin architecture based on Python entry points. The MCP server, f
 
 1. Subclass `TongsPlugin`:
 
-```python
-from tongs.plugins.base import TongsPlugin
+   ```python
+   from tongs.plugins.base import TongsPlugin
 
-class MyPlugin(TongsPlugin):
-    @property
-    def name(self) -> str:
-        return "my-plugin"
+   class MyPlugin(TongsPlugin):
+       @property
+       def name(self) -> str:
+           return "my-plugin"
 
-    @property
-    def version(self) -> str:
-        return "0.1.0"
+       @property
+       def version(self) -> str:
+           return "0.1.0"
 
-    async def on_app_ready(self, app) -> None:
-        """Called after the TUI app is mounted."""
+       async def on_app_ready(self, app) -> None:
+           """Called after the TUI app is mounted."""
 
-    async def on_app_shutdown(self, app) -> None:
-        """Called before app exit."""
+       async def on_app_shutdown(self, app) -> None:
+           """Called before app exit."""
 
-    def get_commands(self) -> list[tuple[str, str, object]]:
-        """Return (display, help_text, callback) tuples for the command palette."""
-        return [("My Action", "Does something useful", self._do_it)]
+       def get_commands(self) -> list[tuple[str, str, object]]:
+           """Return (display, help_text, callback) tuples for the command palette."""
+           return [("My Action", "Does something useful", self._do_it)]
 
-    def get_screens(self) -> dict[str, type]:
-        """Return screen_name -> Screen class mappings."""
-        return {}
-```
+       def get_screens(self) -> dict[str, type]:
+           """Return screen_name -> Screen class mappings."""
+           return {}
+   ```
 
 2. Register it as an entry point in your package's `pyproject.toml`:
 
-```toml
-[project.entry-points."tongs.plugins"]
-my-plugin = "my_package.plugin:MyPlugin"
-```
+   ```toml
+   [project.entry-points."tongs.plugins"]
+   my-plugin = "my_package.plugin:MyPlugin"
+   ```
 
 3. Install your package (or `pip install -e .` for development) and tongs discovers it automatically on startup.
 

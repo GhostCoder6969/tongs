@@ -32,7 +32,7 @@ diffs and inline comments, right where you already work.
 GitHub PRs and GitLab MRs in one view, auto-detected from your git remotes.
 Three tabs let you triage everything you need to review.
 
-```
+```text
  Inbox ─────────────────────────────────────────────────────────
   [My Reviews]  My MRs  All Open
 
@@ -60,7 +60,7 @@ scan_depth = 5
 Split-pane viewer with a file tree, syntax highlighting across 500+ languages,
 and word-level diff highlighting that shows exactly what changed.
 
-```
+```text
  Diff ──────────────────────────────────────────────────────────
   src/
   ├─ M  auth.py            │  @@ -42,7 +42,9 @@ def validate_token(token: str):
@@ -83,7 +83,7 @@ preview toggle with ++m++.
 Select lines, write comments, and post suggested changes without leaving the
 terminal.
 
-```
+```text
  Comment ───────────────────────────────────────────────────────
   src/auth.py:44
 
@@ -104,7 +104,7 @@ it, and tongs posts a suggestion block using the forge's native syntax.
 Browse pipelines, drill into jobs grouped by stage, read full ANSI-rendered logs.
 Cancel or retry directly from the TUI.
 
-```
+```text
  Pipeline #18204 ── passed ─────────────────────────────────────
   Stage: build
     ● build-linux     passed    2m 14s

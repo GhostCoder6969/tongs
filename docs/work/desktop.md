@@ -286,7 +286,7 @@ concurrency and shared-file ownership. Use the project work-item and PR template
 | #24 | Passing feature-branch CI and MCP/lint baseline | #23 verified bootstrap | Planned; inspect and split identified fixes before dispatch |
 | #25 | Actual hardware-accelerated Electron evidence | #23 verified bootstrap; #21 code already verified at 02ad696 | Planned; assign Sol investigation after bootstrap |
 
-#24 and #25 can be investigated concurrently with disjoint ownership. Their PRs
+\#24 and #25 can be investigated concurrently with disjoint ownership. Their PRs
 cannot bypass required failing checks. Production contract/design work in #22
 continues before its dependent implementation graph is approved and dispatched.
 The final main PR must include exact tested commits/artifacts, CI, native GPU and
