@@ -8,16 +8,22 @@ may only ever satisfy an expectation that this file already declares.
 
 Three independent classes of evidence must all agree before the gate passes:
 
-1. Workflow job results.  Every configured job of the ordinary CI workflow and
-   every configured job of the called production workflow must report
-   ``success``.  Failure, skip, cancellation, a missing entry, an unexpected
-   entry and a malformed entry are all rejected, so neither a path filter, a
-   skipped reusable workflow, a partial matrix nor an expected-negative job can
-   become an implicit pass.
-2. Receipts.  Each required check contributes exactly one issue #110 receipt
-   validated against a consumer-owned :class:`ReceiptPolicy` carrying this
-   run's repository, run ID, attempt, environment, provenance, source commit
-   and source tree.  A receipt from another run, another attempt, another
+1. Workflow job results, judged against the effective lane plan the aggregate
+   wrote (``tests/ci/ci_plan.py``).  Every job of the ordinary CI workflow and
+   every job of the called production workflow whose lane the plan selected
+   must report ``success``.  A skip passes only for a lane the effective plan
+   deselected, and such a lane must report exactly ``skipped``: a deselected
+   lane that ran anyway proves the wiring drifted and is rejected.  Failure,
+   cancellation, a missing entry, an unexpected entry and a malformed entry are
+   rejected for every lane, and the production results must be empty when the
+   plan deselected desktop.  Only the ``changes`` planning job may report
+   something other than success, and only when the effective plan is the full
+   graph.
+2. Receipts.  The required check set is the union of the checks of every
+   selected lane, and the evidence directories must equal it exactly.  Each
+   required check contributes exactly one issue #110 receipt validated against
+   a consumer-owned :class:`ReceiptPolicy` carrying this run's repository, run
+   ID, attempt, environment, provenance, source commit and source tree.  A receipt from another run, another attempt, another
    commit or another check is therefore stale and rejected.
 3. Report outcomes.  Every staged report is read back through issue #130
    ``read_bound_bytes`` and parsed by the issue #115 semantic parsers, so a
@@ -37,7 +43,7 @@ import importlib.util
 import json
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -46,6 +52,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 RECEIPT_READER_PROGRAM = ".github/scripts/verify_desktop_production.py"
 REPORT_PARSER_PROGRAM = ".github/scripts/desktop_test_reports.py"
+CI_PLAN_PROGRAM = "tests/ci/ci_plan.py"
+#: Shared with ``verify_desktop_ci`` so both verifiers see one ``Plan`` class.
+CI_PLAN_MODULE = "tongs_ci_plan"
 
 
 class GateVerificationError(ValueError):
@@ -64,6 +73,9 @@ def _load_module(name: str, path: Path) -> ModuleType:
 
 RECEIPTS = _load_module("desktop_gate_receipts", ROOT / RECEIPT_READER_PROGRAM)
 REPORTS = _load_module("desktop_gate_reports", ROOT / REPORT_PARSER_PROGRAM)
+CI_PLAN = sys.modules.get(CI_PLAN_MODULE) or _load_module(
+    CI_PLAN_MODULE, ROOT / CI_PLAN_PROGRAM
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,32 +125,18 @@ PYTEST_JUNIT = "pytest-junit"
 NODE_TAP = "node-tap"
 ARTIFACT_LIFECYCLE = "artifact-lifecycle-v1"
 
-#: Jobs of the ordinary CI workflow that must each report ``success``.
-REQUIRED_CI_JOBS: frozenset[str] = frozenset(
-    {
-        "lint-and-format",
-        "core",
-        "desktop-fixtures",
-        "fedora-podman",
-        "desktop-production",
-    }
-)
+#: Jobs of the ordinary CI workflow the aggregate needs: every lane job plus
+#: ``changes``.  Which of them must succeed is decided by the effective plan.
+REQUIRED_CI_JOBS: frozenset[str] = frozenset(CI_PLAN.LANE_CI_JOBS.values()) | {
+    CI_PLAN.CHANGES_JOB
+}
 
-#: Jobs of the called production workflow that must each report ``success``.
-#: The reusable workflow reports one aggregated result to its caller, so the
-#: consumer must inspect this inner set separately or a skipped inner job would
-#: be invisible.
+#: Jobs of the called production workflow, owned by the desktop and packaging
+#: lanes.  The reusable workflow reports one aggregated result to its caller,
+#: so the consumer must inspect this inner set separately or a skipped inner
+#: job would be invisible.
 REQUIRED_PRODUCTION_JOBS: frozenset[str] = frozenset(
-    {
-        "source-identity",
-        "desktop-tap",
-        "archive",
-        "archive-evidence",
-        "installed-core",
-        "archive-sbom",
-        "rpm-lifecycle",
-        "native-payload",
-    }
+    job for jobs in CI_PLAN.LANE_PRODUCTION_JOBS.values() for job in jobs
 )
 
 #: Reserved identifier for the physical GPU acceptance owned by issue #55.  No
@@ -293,6 +291,10 @@ REQUIRED_CHECKS: tuple[RequiredCheck, ...] = (
 REQUIRED_CHECK_IDS: frozenset[str] = frozenset(
     check.check_id for check in REQUIRED_CHECKS
 )
+if REQUIRED_CHECK_IDS != frozenset(
+    check for checks in CI_PLAN.LANE_CHECKS.values() for check in checks
+):
+    raise GateVerificationError("LANE_CHECKS does not cover exactly REQUIRED_CHECKS")
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,31 +326,69 @@ def _decode_results(raw_results: str, label: str) -> dict[str, Any]:
 
 
 def verify_job_results(
-    raw_results: str, required_jobs: frozenset[str], label: str
+    raw_results: str,
+    required_jobs: frozenset[str] | Mapping[str, frozenset[str]],
+    label: str,
 ) -> None:
-    """Require the exact configured job set with a ``success`` result each."""
+    """Require the exact configured job set with an allowed result each.
 
+    ``required_jobs`` maps each job to the results it may report.  A plain set
+    requires ``success`` from every job.
+    """
+
+    if isinstance(required_jobs, Mapping):
+        allowed = {name: frozenset(results) for name, results in required_jobs.items()}
+    else:
+        allowed = {name: frozenset({"success"}) for name in required_jobs}
     results = _decode_results(raw_results, label)
     actual = set(results)
-    if actual != required_jobs:
-        missing = sorted(required_jobs - actual)
-        unexpected = sorted(actual - required_jobs)
+    if actual != set(allowed):
+        missing = sorted(set(allowed) - actual)
+        unexpected = sorted(actual - set(allowed))
         raise GateVerificationError(
             f"{label} job set mismatch: missing={missing}, unexpected={unexpected}"
         )
     rejected: list[str] = []
-    for name in sorted(required_jobs):
+    for name in sorted(allowed):
         job = results[name]
         if not isinstance(job, dict):
             rejected.append(f"{name}=malformed")
             continue
         result = job.get("result")
-        if result != "success":
-            rejected.append(f"{name}={result!r}")
+        if result not in allowed[name]:
+            expected = "|".join(sorted(allowed[name]))
+            rejected.append(f"{name}={result!r} (expected {expected})")
     if rejected:
         raise GateVerificationError(
-            f"{label} jobs did not all succeed: " + ", ".join(rejected)
+            f"{label} jobs did not match the effective plan: " + ", ".join(rejected)
         )
+
+
+def _required_checks(plan: Any) -> tuple[RequiredCheck, ...]:
+    if plan is None:
+        return REQUIRED_CHECKS
+    try:
+        selected = CI_PLAN.selected_checks(plan)
+    except (AttributeError, ValueError) as error:
+        raise GateVerificationError(f"effective plan is invalid: {error}") from error
+    return tuple(check for check in REQUIRED_CHECKS if check.check_id in selected)
+
+
+def verify_production_results(raw_results: str, plan: Any) -> None:
+    """Require the inner production results the effective plan implies."""
+
+    try:
+        expected = CI_PLAN.expected_production_results(plan)
+    except (AttributeError, ValueError) as error:
+        raise GateVerificationError(f"effective plan is invalid: {error}") from error
+    if expected is None:
+        if isinstance(raw_results, str) and not raw_results.strip():
+            return
+        raise GateVerificationError(
+            "desktop production results must be empty when the effective plan "
+            "deselected desktop"
+        )
+    verify_job_results(raw_results, expected, "desktop production")
 
 
 def _discovered_check_directories(evidence_root: Path) -> dict[str, Path]:
@@ -612,11 +652,19 @@ def _verify_source_context(
         )
 
 
-def verify_check_set(evidence_root: Path, identity: GateIdentity) -> dict[str, str]:
-    """Validate every required receipt and reject anything else present."""
+def verify_check_set(
+    evidence_root: Path, identity: GateIdentity, plan: Any = None
+) -> dict[str, str]:
+    """Validate every required receipt and reject anything else present.
 
+    The required checks are those of the lanes ``plan`` selects; without a
+    plan every configured check is required.
+    """
+
+    required = _required_checks(plan)
+    required_ids = frozenset(check.check_id for check in required)
     discovered = _discovered_check_directories(evidence_root)
-    configured = {check.evidence_directory: check for check in REQUIRED_CHECKS}
+    configured = {check.evidence_directory: check for check in required}
     if GPU_GATE_CHECK_ID in discovered:
         raise GateVerificationError(
             f"evidence claims the reserved physical GPU gate {GPU_GATE_CHECK_ID!r}; "
@@ -639,7 +687,7 @@ def verify_check_set(evidence_root: Path, identity: GateIdentity) -> dict[str, s
             raise GateVerificationError(
                 f"check {check.check_id!r} receipt was rejected: {error}"
             ) from error
-    if set(verified) != REQUIRED_CHECK_IDS:
+    if set(verified) != required_ids:
         raise GateVerificationError("verified check identifiers are incomplete")
     return verified
 
@@ -650,14 +698,32 @@ def verify_production_gate(
     production_results: str,
     evidence_root: Path,
     identity: GateIdentity,
+    plan: Any,
 ) -> dict[str, str]:
     """Run every independent class of check and fail closed on the first gap."""
 
-    verify_job_results(ci_results, REQUIRED_CI_JOBS, "ordinary CI")
-    verify_job_results(
-        production_results, REQUIRED_PRODUCTION_JOBS, "desktop production"
-    )
-    return verify_check_set(evidence_root, identity)
+    try:
+        ci_expected = CI_PLAN.expected_ci_results(plan)
+    except (AttributeError, ValueError) as error:
+        raise GateVerificationError(f"effective plan is invalid: {error}") from error
+    if set(ci_expected) != REQUIRED_CI_JOBS:
+        raise GateVerificationError("lane policy does not cover the CI job set")
+    verify_job_results(ci_results, ci_expected, "ordinary CI")
+    verify_production_results(production_results, plan)
+    return verify_check_set(evidence_root, identity, plan)
+
+
+def load_plan(path: Path) -> Any:
+    """Read the effective plan file strictly."""
+
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise GateVerificationError(f"effective plan is unreadable: {path}") from error
+    try:
+        return CI_PLAN.Plan.from_json(text)
+    except ValueError as error:
+        raise GateVerificationError(f"effective plan is malformed: {error}") from error
 
 
 def _identity(arguments: argparse.Namespace) -> GateIdentity:
@@ -678,6 +744,7 @@ def _identity(arguments: argparse.Namespace) -> GateIdentity:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-root", required=True, type=Path)
+    parser.add_argument("--plan", required=True, type=Path)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--tree", required=True)
     parser.add_argument("--repository", required=True)
@@ -698,11 +765,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     arguments = _parser().parse_args(argv)
     try:
+        plan = load_plan(arguments.plan)
         verified = verify_production_gate(
             ci_results=os.environ.get("DESKTOP_GATE_RESULTS", ""),
             production_results=os.environ.get("DESKTOP_PRODUCTION_RESULTS", ""),
             evidence_root=arguments.evidence_root,
             identity=_identity(arguments),
+            plan=plan,
         )
     except (
         GateVerificationError,
@@ -712,9 +781,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     ) as error:
         print(f"Desktop production gate failed: {error}", file=sys.stderr)
         return 1
+    graph = "full graph" if plan.full else "reduced graph"
     print(
-        "Desktop production gate verified "
-        f"{len(verified)} required checks; the physical GPU gate "
+        f"Gate verified the {len(verified)} checks the effective plan ({graph}) "
+        "requires; the physical GPU gate "
         f"{GPU_GATE_CHECK_ID!r} remains unsatisfied and is owned by issue #55"
     )
     return 0

@@ -10,7 +10,9 @@ stage would otherwise surface only after a multi-hour hosted run.
 This module parses the two workflows and asserts the agreement directly.  It
 also anchors the two bespoke adapters, whose receipt and report names and stage
 lists the gate restates as its own policy, to the constants those reviewed
-adapters actually export.
+adapters actually export, and pins the lane wiring: the ``changes`` job, the
+canonical lane condition on every lane job, the ``run_packaging`` input, the
+docs build lane and the plan-keyed aggregate.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ import pytest
 import yaml
 
 from tests.ci.desktop_production_expectations import archive_adapter, sbom_adapter
-from tests.ci.verify_desktop_ci import REQUIRED_GATE_JOBS
+from tests.ci.verify_desktop_ci import CI_PLAN, REQUIRED_GATE_JOBS
 from tests.ci.verify_desktop_production_gate import (
     ARTIFACT_LIFECYCLE,
     REQUIRED_CHECKS,
@@ -38,6 +40,19 @@ from tests.ci.verify_desktop_production_gate import (
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 PRODUCTION_WORKFLOW = ROOT / ".github/workflows/desktop-production.yml"
 GATE_JOB = "desktop-pr-gate"
+GATE_NAME = "CI aggregate"
+CHANGES_JOB = "changes"
+PLAN_PATH = '"$RUNNER_TEMP/ci-plan.json"'
+PACKAGING_CONDITION = "${{ inputs.run_packaging }}"
+
+
+def _lane_condition(lane: str) -> str:
+    return (
+        "${{ !cancelled() && (needs.changes.result != 'success' || "
+        f"needs.changes.outputs.{lane} == 'true') }}}}"
+    )
+
+
 RESULTS_JOB = "production-results"
 UNRESOLVED = "<workflow-expression>"
 CHECKED_OUT_COMMIT = "<checked-out-commit>"
@@ -224,8 +239,232 @@ def _check(check_id: str) -> RequiredCheck:
 
 def test_required_ci_jobs_equal_the_aggregate_needs(ci: dict[str, Any]) -> None:
     needs = set(ci["jobs"][GATE_JOB]["needs"])
+    assert needs == set(CI_PLAN.LANE_CI_JOBS.values()) | {CHANGES_JOB}
     assert needs == set(REQUIRED_CI_JOBS)
     assert needs == set(REQUIRED_GATE_JOBS)
+
+
+def test_triggers_target_main_and_rerun_on_labels(ci: dict[str, Any]) -> None:
+    # PyYAML reads the bare ``on`` key as boolean true.
+    triggers = ci[True]
+    assert set(triggers) == {"push", "pull_request"}
+    assert triggers["push"] == {"branches": ["main"]}
+    assert triggers["pull_request"] == {
+        "branches": ["main"],
+        "types": ["opened", "synchronize", "reopened", "labeled"],
+    }
+
+
+def test_only_pull_request_runs_cancel_each_other(ci: dict[str, Any]) -> None:
+    concurrency = ci["concurrency"]
+    assert _flatten(concurrency["group"]) == (
+        "ci-${{ github.event_name == 'pull_request' && "
+        "format('pr-{0}', github.event.pull_request.number) || "
+        "format('run-{0}', github.run_id) }}"
+    )
+    assert concurrency["cancel-in-progress"] == (
+        "${{ github.event_name == 'pull_request' }}"
+    )
+
+
+def test_the_changes_job_publishes_the_plan_and_every_lane(
+    ci: dict[str, Any],
+) -> None:
+    job = ci["jobs"][CHANGES_JOB]
+    assert job["name"] == "Plan CI lanes"
+    assert "needs" not in job and "if" not in job
+    assert job["permissions"] == {"contents": "read"}
+    assert set(job["outputs"]) == {"plan", *CI_PLAN.LANES}
+    for name, value in job["outputs"].items():
+        assert value == f"${{{{ steps.plan.outputs.{name} }}}}", name
+    checkout = job["steps"][0]
+    assert checkout["with"] == {
+        "ref": "${{ env.TONGS_CHECKED_OUT_SHA }}",
+        "fetch-depth": 2,
+        "persist-credentials": False,
+    }
+    plan = next(step for step in job["steps"] if step.get("id") == "plan")
+    command = _flatten(plan["run"])
+    assert command.startswith("python3 tests/ci/ci_plan.py compute ")
+    for argument in (
+        '--event-name "$GITHUB_EVENT_NAME"',
+        '--event-path "$GITHUB_EVENT_PATH"',
+        '--checked-out "$TONGS_CHECKED_OUT_SHA"',
+        '--github-output "$GITHUB_OUTPUT"',
+        '--step-summary "$GITHUB_STEP_SUMMARY"',
+    ):
+        assert argument in command, argument
+
+
+def test_every_lane_job_carries_the_canonical_condition(ci: dict[str, Any]) -> None:
+    for lane, job_name in CI_PLAN.LANE_CI_JOBS.items():
+        job = ci["jobs"][job_name]
+        assert job["needs"] == [CHANGES_JOB], job_name
+        assert job["if"] == _lane_condition(lane), job_name
+    lane_jobs = set(CI_PLAN.LANE_CI_JOBS.values())
+    assert set(ci["jobs"]) == lane_jobs | {CHANGES_JOB, GATE_JOB}
+
+
+def test_the_production_call_receives_the_packaging_lane(
+    ci: dict[str, Any],
+) -> None:
+    call = ci["jobs"]["desktop-production"]
+    assert call["with"]["run_packaging"] == (
+        "${{ needs.changes.result != 'success' || "
+        "needs.changes.outputs.packaging == 'true' }}"
+    )
+
+
+def test_the_docs_lane_builds_strictly_with_the_dev_extra_pins(
+    ci: dict[str, Any],
+) -> None:
+    job = ci["jobs"]["docs"]
+    assert job["name"] == "Docs build"
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert job["timeout-minutes"] == 10
+    assert job["permissions"] == {"contents": "read"}
+    assert "outputs" not in job
+    commands = [step["run"] for step in job["steps"] if "run" in step]
+    assert commands[:2] == [
+        "python -m pip install mkdocs==1.6.1 mkdocs-material==9.7.7",
+        'mkdocs build --strict --site-dir "$RUNNER_TEMP/site"',
+    ]
+    for step in job["steps"]:
+        if "uses" in step and "checkout" in step["uses"]:
+            assert step["with"]["persist-credentials"] is False
+    pin_pattern = re.compile(r"(mkdocs(?:-material)?)==([0-9][\w.]*)")
+    pyproject_pins = dict(pin_pattern.findall((ROOT / "pyproject.toml").read_text()))
+    assert dict(pin_pattern.findall(commands[0])) == pyproject_pins
+    assert set(pyproject_pins) == {"mkdocs", "mkdocs-material"}
+
+
+def _gate_steps(ci: dict[str, Any]) -> list[dict[str, Any]]:
+    return ci["jobs"][GATE_JOB]["steps"]
+
+
+def test_the_aggregate_always_runs_and_recomputes_the_plan(
+    ci: dict[str, Any],
+) -> None:
+    job = ci["jobs"][GATE_JOB]
+    assert job["name"] == GATE_NAME
+    assert job["if"] == "${{ always() }}"
+    checkout = _gate_steps(ci)[0]
+    assert checkout["with"]["fetch-depth"] == 2
+    assert checkout["with"]["persist-credentials"] is False
+    plan = next(step for step in _gate_steps(ci) if step.get("id") == "plan")
+    assert plan["env"] == {
+        "UPSTREAM_PLAN": "${{ needs.changes.outputs.plan }}",
+        "CHANGES_RESULT": "${{ needs.changes.result }}",
+    }
+    command = _flatten(plan["run"])
+    assert command.startswith("python3 tests/ci/ci_plan.py effective ")
+    for argument in (
+        '--upstream-json "$UPSTREAM_PLAN"',
+        '--changes-result "$CHANGES_RESULT"',
+        f"--output {PLAN_PATH}",
+        '--github-output "$GITHUB_OUTPUT"',
+    ):
+        assert argument in command, argument
+
+
+def test_both_verifiers_read_the_effective_plan(ci: dict[str, Any]) -> None:
+    steps = _gate_steps(ci)
+    plan_index = next(i for i, step in enumerate(steps) if step.get("id") == "plan")
+    verifiers = [
+        (index, _flatten(step["run"]))
+        for index, step in enumerate(steps)
+        if "verify_desktop_ci.py" in str(step.get("run", ""))
+        or "verify_desktop_production_gate.py" in str(step.get("run", ""))
+    ]
+    assert len(verifiers) == 2
+    for index, command in verifiers:
+        assert index > plan_index
+        assert f"--plan {PLAN_PATH}" in command, command
+    assert verifiers[0][1].startswith("python3 tests/ci/verify_desktop_ci.py aggregate")
+
+
+def test_every_download_is_keyed_on_its_owning_lane(ci: dict[str, Any]) -> None:
+    steps = _gate_steps(ci)
+    owner = {
+        check: lane for lane, checks in CI_PLAN.LANE_CHECKS.items() for check in checks
+    }
+    root_index = next(
+        index
+        for index, step in enumerate(steps)
+        if _flatten(step.get("run", "")) == 'mkdir -p "$RUNNER_TEMP/gate-evidence"'
+    )
+    downloads = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if "download-artifact" in str(step.get("uses", ""))
+    ]
+    assert len(downloads) == len(REQUIRED_CHECKS)
+    seen = set()
+    for index, step in downloads:
+        assert index > root_index
+        directory = _flatten(step["with"]["path"]).rsplit("/", 1)[1]
+        check = next(c for c in REQUIRED_CHECKS if c.evidence_directory == directory)
+        lane = owner[check.check_id]
+        assert step["if"] == f"steps.plan.outputs.{lane} == 'true'", directory
+        seen.add(check.check_id)
+    assert seen == {check.check_id for check in REQUIRED_CHECKS}
+
+
+def test_run_packaging_is_an_optional_boolean_defaulting_to_true(
+    production: dict[str, Any],
+) -> None:
+    triggers = production[True]
+    for trigger in ("workflow_call", "workflow_dispatch"):
+        inputs = triggers[trigger]["inputs"]
+        assert set(inputs) == {"checked_out_sha", "run_packaging"}, trigger
+        assert inputs["run_packaging"]["type"] == "boolean"
+        assert inputs["run_packaging"]["required"] is False
+        assert inputs["run_packaging"]["default"] is True
+        assert inputs["checked_out_sha"]["required"] is True
+    assert set(triggers["workflow_call"]["outputs"]) == {"job-results", "source-tree"}
+
+
+def test_exactly_the_packaging_jobs_are_gated_on_run_packaging(
+    production: dict[str, Any],
+) -> None:
+    gated = {
+        name
+        for name, job in production["jobs"].items()
+        if job.get("if") == PACKAGING_CONDITION
+    }
+    assert gated == set(CI_PLAN.LANE_PRODUCTION_JOBS["packaging"])
+    for name, job in production["jobs"].items():
+        if name in gated:
+            continue
+        expected = "${{ always() }}" if name == RESULTS_JOB else None
+        assert job.get("if") == expected, name
+
+
+def test_lane_production_jobs_partition_the_production_workflow(
+    production: dict[str, Any],
+) -> None:
+    lanes = CI_PLAN.LANE_PRODUCTION_JOBS
+    assert not lanes["desktop"] & lanes["packaging"]
+    assert lanes["desktop"] | lanes["packaging"] == set(REQUIRED_PRODUCTION_JOBS)
+    assert set(production["jobs"]) == set(REQUIRED_PRODUCTION_JOBS) | {RESULTS_JOB}
+    # A desktop-lane job must never need a packaging job, or deselecting
+    # packaging would skip part of the desktop lane.
+    for name in lanes["desktop"]:
+        needs = production["jobs"][name].get("needs") or []
+        assert not set(needs) & lanes["packaging"], name
+
+
+def test_every_check_is_owned_by_the_lane_of_its_job() -> None:
+    owner = {
+        check: lane for lane, checks in CI_PLAN.LANE_CHECKS.items() for check in checks
+    }
+    assert set(owner) == {check.check_id for check in REQUIRED_CHECKS}
+    for check in REQUIRED_CHECKS:
+        lane = owner[check.check_id]
+        if check.workflow == "ci":
+            assert CI_PLAN.LANE_CI_JOBS[lane] == check.job, check.check_id
+        else:
+            assert check.job in CI_PLAN.LANE_PRODUCTION_JOBS[lane], check.check_id
 
 
 def test_required_production_jobs_equal_the_results_needs(

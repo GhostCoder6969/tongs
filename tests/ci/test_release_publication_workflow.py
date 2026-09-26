@@ -65,6 +65,29 @@ def test_the_tag_filter_admits_only_stable_version_tags(
     assert dispatch["default"] is True
 
 
+def test_pull_requests_into_main_run_only_the_no_signing_validation(
+    workflow: dict[str, Any],
+    jobs: dict[str, dict[str, Any]],
+) -> None:
+    triggers = workflow[True]
+    assert triggers["pull_request"]["branches"] == ["main"]
+    # The paths filter stays: this workflow is not the required check.
+    assert triggers["pull_request"]["paths"]
+    # Only the unconditional validation job can run for a pull request.  Every
+    # other job is gated on a push or a dry-run dispatch and never names the
+    # pull_request event.
+    assert "if" not in jobs["no-signing-validation"]
+    assert "needs" not in jobs["no-signing-validation"]
+    for name, job in jobs.items():
+        if name == "no-signing-validation":
+            continue
+        condition = " ".join(job["if"].split())
+        assert "pull_request" not in condition, name
+        events = set(re.findall(r"github\.event_name == '([a-z_]+)'", condition))
+        assert events and events <= {"push", "workflow_dispatch"}, (name, events)
+    assert jobs["no-signing-validation"]["permissions"] == {"contents": "read"}
+
+
 def test_the_workflow_level_permissions_are_read_only(
     workflow: dict[str, Any],
 ) -> None:
