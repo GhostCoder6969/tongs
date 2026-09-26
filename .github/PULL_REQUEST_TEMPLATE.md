@@ -1,22 +1,14 @@
 ## Summary
 
-What changed and at a high level how.
-
-## Motivation
-
-Why this change is needed.
+What changed and why. Link the issue it fixes, for example `Fixes #123`.
 
 ## Testing
 
-How you verified the change works. Include commands you ran or describe manual testing steps.
+What you ran or checked by hand.
 
 ## Checklist
 
-- [ ] `pytest` passes
-- [ ] `ruff check src/ tests/` is clean
-- [ ] `ruff format --check src/ tests/` is clean
-- [ ] If `desktop/` changed, the production Electron shell builds and its tests pass: `npm ci --prefix desktop`, `npm run build --prefix desktop`, then `TONGS_TEST_PYTHON="$(command -v python)" npm test --prefix desktop`
-- [ ] If `docs/` or `mkdocs.yml` changed, `mkdocs build --strict` is clean locally. No pull request check runs it; the deploy workflow only runs it after a push to `main`
-- [ ] Documentation updated (if applicable)
-- [ ] The Testing section above records the exact commit tested, the commands run, their results, and any check skipped along with the reason
-- [ ] Reviewed [CONTRIBUTING.md](CONTRIBUTING.md) for code style and review expectations
+- [ ] `pytest`, `ruff check src/ tests/` and `ruff format --check src/ tests/` pass
+- [ ] Desktop changes: `npm run build --prefix desktop` and the desktop tests pass
+- [ ] Docs changes: `mkdocs build --strict` passes
+- [ ] Commits are signed off (`git commit -s`)

@@ -47,7 +47,7 @@ body:
       options:
         - Terminal interface (TUI)
         - MCP server plugin
-        - Desktop workspace (unreleased, built from source)
+        - Desktop app
         - Not interface-specific
     validations:
       required: true
