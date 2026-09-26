@@ -190,8 +190,10 @@ RULES: tuple[Rule, ...] = (
     ),
     # The wheel's readme, so the core lane builds it as well as the docs lane.
     Rule(name="readme", patterns=("README.md",), lanes=frozenset({"docs", "core"})),
-    # Modules outside the desktop sidecar import closure, which the import
-    # closure drift test in test_ci_plan.py keeps honest.
+    # Terminal-only modules and the suites only the core lane runs.  None of
+    # them is in the desktop sidecar import closure or imported by a desktop
+    # job's tests, which the drift tests in test_ci_plan.py and
+    # test_ci_plan_drift.py keep honest.
     Rule(
         name="tui",
         patterns=(
@@ -200,11 +202,74 @@ RULES: tuple[Rule, ...] = (
             "src/tongs/mcp/**",
             "src/tongs/app.py",
             "src/tongs/commands.py",
+            "src/tongs/helpers.py",
             "src/tongs/__main__.py",
             "tests/test_*.py",
+            "tests/test_cache/**",
+            "tests/test_diff/**",
+            "tests/test_forges/**",
+            "tests/test_mcp/**",
+            "tests/test_plugins/**",
+            "tests/test_scanner/**",
+            "tests/test_views/**",
+            "tests/test_widgets/**",
         ),
         lanes=frozenset({"lint", "core"}),
     ),
+    # Everything the desktop sidecar reaches, including forge clients it loads
+    # at run time, plus the suites and fixtures the desktop jobs run.  The
+    # ``tui_services`` adapter is here because the desktop TAP job's draft
+    # acceptance test imports it.  None of this is read by the archive, SBOM
+    # or RPM jobs except through the packaging rule below.
+    Rule(
+        name="sidecar",
+        patterns=(
+            "src/tongs/cache/**",
+            "src/tongs/config.py",
+            "src/tongs/desktop/**",
+            "src/tongs/diff/**",
+            "src/tongs/errors.py",
+            "src/tongs/forges/**",
+            "src/tongs/plugins/**",
+            "src/tongs/scanner/**",
+            "src/tongs/services/**",
+            "src/tongs/state/**",
+            "src/tongs/tui_services.py",
+            "tests/__init__.py",
+            "tests/desktop/**",
+            "tests/fixtures/**",
+            "tests/integration/**",
+            "tests/plugins/**",
+            "tests/services/**",
+            "tests/state/**",
+            "examples/desktop-plugin/**",
+        ),
+        lanes=frozenset({"lint", "core", "desktop_fixtures", "desktop"}),
+    ),
+    # The archive producer's _SOURCE_INPUTS outside the full-graph roots, the
+    # programs the archive, archive-evidence, archive-sbom and rpm-lifecycle
+    # jobs run, the tongs modules those programs import, and the files they
+    # read.  test_ci_plan_drift.py derives each of those sets and checks it.
+    Rule(
+        name="packaging",
+        patterns=(
+            "LICENSE",
+            "scripts/build_desktop_archive.py",
+            "scripts/build_desktop_sbom.py",
+            "src/tongs/__init__.py",
+            "src/tongs/desktop/artifact_contract/**",
+            "src/tongs/desktop/installer/**",
+            "tests/integration/desktop/archive_evidence.py",
+            "tests/integration/desktop/candidate_attestation.py",
+            "tests/integration/desktop/rpm_payload_contract.py",
+            "tests/integration/desktop/sbom_evidence.py",
+            "tests/desktop/installer/fixtures/**",
+            "tests/packaging/**",
+        ),
+        lanes=frozenset({"lint", "core", "desktop_fixtures", "desktop", "packaging"}),
+    ),
+    # The spike prototypes run only in the desktop fixture job.
+    Rule(name="spikes", patterns=("spikes/**",), lanes=frozenset({"desktop_fixtures"})),
     Rule(
         name="ci-infrastructure",
         patterns=(
@@ -212,6 +277,20 @@ RULES: tuple[Rule, ...] = (
             ".github/scripts/**",
             "tests/ci/**",
             "tests/containers/**",
+        ),
+        full=True,
+    ),
+    # Build and packaging inputs.  These are the only paths, with the CI
+    # infrastructure above, that select the Fedora Podman probe.  Hatchling
+    # reads .gitignore to choose the files a wheel or sdist ships.
+    Rule(
+        name="build-configuration",
+        patterns=(
+            "pyproject.toml",
+            "requirements/**",
+            "packaging/**",
+            "desktop/**",
+            ".gitignore",
         ),
         full=True,
     ),
