@@ -1,89 +1,48 @@
 # Contributing
 
 Tongs is developed in the open at
-[github.com/andre-motta/tongs](https://github.com/andre-motta/tongs).
-[CONTRIBUTING.md](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md)
-in the repository is the authoritative contributor guide; this page summarizes it
-so the site links to a single source instead of restating it.
+[github.com/andre-motta/tongs](https://github.com/andre-motta/tongs), and
+contributions of all sizes are welcome: bug reports, fixes, documentation, and
+new ideas. The full guide is
+[CONTRIBUTING.md](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md);
+this page is the short version.
 
-Check the [open issues](https://github.com/andre-motta/tongs/issues) for current
-work, and discuss a new direction in an issue before starting a large change.
+## Find something to work on
 
-## Development setup
+- [Good first issues](https://github.com/andre-motta/tongs/issues?q=is%3Aopen+label%3A%22good+first+issue%22)
+  are small and self-contained, and most point to the file to open and the test
+  to run.
+- The [milestones](https://github.com/andre-motta/tongs/milestones) show what is
+  planned for the next releases.
+- For a larger change, open an issue first so the approach can be agreed before
+  you spend time on it. Questions in issues are always welcome.
 
-Tongs requires Python 3.12 or newer. Run commands from the checkout root and keep
-the virtual environment inside that checkout:
+## Set up and run the tests
+
+You need Python 3.12 or newer:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev,mcp]" ruff
-```
-
-`uv venv --python 3.12` and `uv pip install` are valid equivalents. The `mcp`
-extra is needed so the MCP tests execute rather than skip on import.
-
-Building the production desktop shell additionally requires Node.js 22.12 or
-newer, with locked dependency installation through `npm ci --prefix desktop`.
-
-## Checks before you open a pull request
-
-Python changes:
-
-```bash
-pytest tests/ --ignore=tests/test_mcp -v
+pytest
 ruff check src/ tests/
 ruff format --check src/ tests/
 ```
 
-Desktop shell changes also build and test the Electron and React shell:
+Tests mock all GitHub and GitLab traffic, so no account or token is needed.
+Desktop app work also needs Node.js 22.12 or newer; see
+[CONTRIBUTING.md](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md#desktop-changes)
+for the desktop build and tests. Documentation changes should pass
+`mkdocs build --strict`.
 
-```bash
-npm ci --prefix desktop
-npm run build --prefix desktop
-TONGS_TEST_PYTHON="$(command -v python)" npm test --prefix desktop
-```
+## Open a pull request
 
-Documentation changes build the site strictly:
-
-```bash
-mkdocs build --strict
-```
-
-`CONTRIBUTING.md` lists the remaining suites, including the MCP report check, the
-comparison fixtures, the installable provider example, the Fedora container
-harness, and the memory bounds required for local Node work.
-
-## Code style
-
-- Format and lint Python with Ruff before submitting.
-- Type every parameter and return value, and put
-  `from __future__ import annotations` at the top of each module.
-- Use module-level imports unless a function-level import is required, such as to
-  avoid a circular dependency.
-- Use frozen dataclasses for immutable data and regular dataclasses for mutable
-  state.
-- Write commits as a title, a blank line, and a one-line description body, and
-  commit with `git commit -s`. Do not use em dashes in prose or commit messages.
-
-## Pull request flow
-
-Open the pull request with its dependencies, the exact tested commit, the checks
-you ran, and functional evidence. Pull requests run
-`.github/workflows/ci.yml`, whose required `Desktop pre-merge aggregate` accepts a
-revision only when Ruff, the Python 3.12 and 3.13 core and MCP tests, the desktop
-fixture and production shell tests, and the Fedora 44 Podman probe all succeed. A
-skipped, cancelled, missing, or failed required job fails the aggregate, and a new
-commit supersedes earlier results.
-
-Every change is reviewed for architecture, security, UX, and quality engineering.
-
-!!! warning "Unreleased feature"
-
-    The production desktop release assembly gate is separate from the pre-merge
-    aggregate. Native hardware-accelerated Electron on the supported Fedora host
-    is its own gate. A fixture, Podman, or headless run is not native, GPU,
-    installer, signing, RPM, or release acceptance.
+Keep pull requests small and focused, fill in the short template, and sign off
+each commit with `git commit -s`
+([Developer Certificate of Origin](https://developercertificate.org/)). CI runs
+the full test suite on Python 3.12 and 3.13 plus the desktop tests, and a
+maintainer reviews the change.
 
 ## Reporting a security issue
 

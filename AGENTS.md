@@ -148,6 +148,7 @@ scripts/                   # Repository maintenance and evidence helpers
 | Security | [.agents/security/](.agents/security/README.md) | Auth, credentials, subprocess safety |
 | Plugins | [.agents/plugins/](.agents/plugins/README.md) | Plugin system, MCP server, extending tongs |
 | Cache | [.agents/cache/](.agents/cache/README.md) | SQLite cache store, TTL, LRU eviction |
+| CI and releases | [.agents/ci/](.agents/ci/README.md) | Hosted workflows, releases, re-running checks, pinned actions |
 
 ## Development Status
 
