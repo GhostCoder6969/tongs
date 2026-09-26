@@ -13,7 +13,7 @@ name: Unpublished desktop candidate attestation
 
 on:
   pull_request:
-    branches: [feat/desktop-app]
+    branches: [main]
     paths:
       - .github/workflows/release-desktop.yml
       - tests/integration/desktop/candidate_attestation.py
