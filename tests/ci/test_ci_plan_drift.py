@@ -91,7 +91,10 @@ class _Tracked:
         if self._files is None:
             self._files = _tracked_files()
         if not self._files:
-            pytest.skip("needs a git work tree (the source copy has no .git)")
+            pytest.fail(
+                "needs a git work tree; mark the test with @pytest.mark.needs_git "
+                "so source copies without .git (the Fedora probe) deselect it"
+            )
         return self._files
 
     def __contains__(self, path: object) -> bool:
@@ -148,6 +151,7 @@ def _source_inputs() -> list[str]:
     return [Path(entry).as_posix() for entry in producer._SOURCE_INPUTS]
 
 
+@pytest.mark.needs_git
 def test_every_archive_source_input_selects_packaging() -> None:
     inputs = _source_inputs()
     assert "src/tongs/__init__.py" in inputs
@@ -232,6 +236,7 @@ def _named_paths(job: dict) -> list[str]:
     return sorted(found)
 
 
+@pytest.mark.needs_git
 @pytest.mark.parametrize(
     ("jobs", "lane"), [(PACKAGING_JOBS, "packaging"), (DESKTOP_JOBS, "desktop")]
 )
@@ -309,6 +314,7 @@ def _packaging_programs() -> list[str]:
     return sorted(program for program in programs if program.endswith(".py"))
 
 
+@pytest.mark.needs_git
 def test_everything_the_packaging_programs_import_or_name_selects_packaging() -> None:
     programs = _packaging_programs()
     assert "scripts/build_desktop_sbom.py" in programs
@@ -515,6 +521,7 @@ def test_every_shared_module_the_installed_core_startup_loads_selects_desktop() 
 # (3) Every tracked path matches an explicit rule.
 
 
+@pytest.mark.needs_git
 def test_every_tracked_path_matches_an_explicit_rule() -> None:
     unmatched = sorted(
         path
@@ -527,6 +534,7 @@ def test_every_tracked_path_matches_an_explicit_rule() -> None:
     )
 
 
+@pytest.mark.needs_git
 def test_the_unmatched_allowlist_is_current() -> None:
     for path, reason in UNMATCHED_ALLOWLIST.items():
         assert reason.strip(), path

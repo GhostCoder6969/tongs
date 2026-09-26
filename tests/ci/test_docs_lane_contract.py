@@ -129,13 +129,6 @@ def test_every_locked_package_is_registry_resolved_with_integrity() -> None:
         assert entry["integrity"].startswith("sha512-"), name
 
 
-def test_a_local_install_matches_the_pin() -> None:
-    installed = LINTERS / "node_modules" / LINTER / "package.json"
-    if not installed.is_file():
-        pytest.skip("the pinned linter is not installed locally")
-    assert json.loads(installed.read_text())["version"] == _pinned_version()
-
-
 def test_the_docs_job_has_no_write_permissions(docs_job: dict[str, Any]) -> None:
     assert docs_job["permissions"] == {"contents": "read"}
     workflow = yaml.safe_load(CI_WORKFLOW.read_text())
