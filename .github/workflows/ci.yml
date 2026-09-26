@@ -2,12 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/desktop-app]
+    branches: [main]
   pull_request:
-    branches: [main, feat/desktop-app]
+    branches: [main]
+    # labeled lets adding ci:full rerun a pull request on the full graph.
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
+
+# A newer push to the same pull request supersedes the older run; pushes to
+# main never cancel each other.
+concurrency:
+  group: >-
+    ci-${{ github.event_name == 'pull_request' &&
+    format('pr-{0}', github.event.pull_request.number) ||
+    format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Every receipt-bearing job checks out and binds this exact revision.  For a
@@ -24,8 +35,70 @@ env:
   PRODUCTION_PROVENANCE: hosted
 
 jobs:
+  # Plans which lanes run.  tests/ci/ci_plan.py classifies the paths the
+  # synthetic merge commit changes relative to its first parent and fails
+  # closed to the full graph on any doubt.  Every lane job runs when this job
+  # does not succeed, and the aggregate recomputes the plan independently.
+  changes:
+    name: Plan CI lanes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+      docs: ${{ steps.plan.outputs.docs }}
+      lint: ${{ steps.plan.outputs.lint }}
+      core: ${{ steps.plan.outputs.core }}
+      desktop_fixtures: ${{ steps.plan.outputs.desktop_fixtures }}
+      fedora_podman: ${{ steps.plan.outputs.fedora_podman }}
+      desktop: ${{ steps.plan.outputs.desktop }}
+      packaging: ${{ steps.plan.outputs.packaging }}
+    steps:
+      - name: Check out the exact revision and its parents without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ env.TONGS_CHECKED_OUT_SHA }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Classify the changed paths into lanes
+        id: plan
+        run: >-
+          python3 tests/ci/ci_plan.py compute
+          --event-name "$GITHUB_EVENT_NAME"
+          --event-path "$GITHUB_EVENT_PATH"
+          --checked-out "$TONGS_CHECKED_OUT_SHA"
+          --output "$RUNNER_TEMP/ci-plan.json"
+          --github-output "$GITHUB_OUTPUT"
+          --step-summary "$GITHUB_STEP_SUMMARY"
+
+  docs:
+    name: Docs build
+    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.docs == 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the exact revision without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ env.TONGS_CHECKED_OUT_SHA }}
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Install the pinned documentation toolchain
+        run: python -m pip install mkdocs==1.6.1 mkdocs-material==9.7.7
+      - name: Build the documentation site strictly
+        run: mkdocs build --strict --site-dir "$RUNNER_TEMP/site"
+
   lint-and-format:
     name: Lint and format
+    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.lint == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -47,6 +120,8 @@ jobs:
 
   core:
     name: Core and MCP (Python ${{ matrix.python-version }})
+    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.core == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -169,6 +244,8 @@ jobs:
 
   desktop-fixtures:
     name: Desktop fixture checks
+    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.desktop_fixtures == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -219,23 +296,32 @@ jobs:
 
   fedora-podman:
     name: Fedora 44 Podman
+    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.fedora_podman == 'true') }}
     uses: ./.github/workflows/desktop-podman-probe.yml
     with:
       head_sha: ${{ github.sha }}
 
   desktop-production:
     name: Desktop production evidence
+    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.desktop == 'true') }}
     uses: ./.github/workflows/desktop-production.yml
     permissions:
       contents: read
       actions: read
     with:
       checked_out_sha: ${{ github.sha }}
+      run_packaging: ${{ needs.changes.result != 'success' || needs.changes.outputs.packaging == 'true' }}
 
+  # The required check.  It always runs, recomputes the lane plan, and accepts
+  # a skipped lane only when its own effective plan deselected that lane.
   desktop-pr-gate:
-    name: Desktop pre-merge aggregate
+    name: CI aggregate
     if: ${{ always() }}
     needs:
+      - changes
+      - docs
       - lint-and-format
       - core
       - desktop-fixtures
@@ -255,6 +341,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ env.TONGS_CHECKED_OUT_SHA }}
+          fetch-depth: 2
           persist-credentials: false
       - name: Set up Python 3.12
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -278,9 +365,29 @@ jobs:
             printf 'Pull request base: %s\n\n' "$PULL_REQUEST_BASE"
             printf 'Reconstruct with: git checkout %s\n' "$TONGS_CHECKED_OUT_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Require every desktop pre-merge job to succeed
-        run: python3 tests/ci/verify_desktop_ci.py aggregate
+      - name: Recompute the lane plan and derive the effective plan
+        id: plan
+        env:
+          UPSTREAM_PLAN: ${{ needs.changes.outputs.plan }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+        run: >-
+          python3 tests/ci/ci_plan.py effective
+          --event-name "$GITHUB_EVENT_NAME"
+          --event-path "$GITHUB_EVENT_PATH"
+          --checked-out "$TONGS_CHECKED_OUT_SHA"
+          --upstream-json "$UPSTREAM_PLAN"
+          --changes-result "$CHANGES_RESULT"
+          --output "$RUNNER_TEMP/ci-plan.json"
+          --github-output "$GITHUB_OUTPUT"
+          --step-summary "$GITHUB_STEP_SUMMARY"
+      - name: Require every selected lane to succeed and every other lane to skip
+        run: >-
+          python3 tests/ci/verify_desktop_ci.py aggregate
+          --plan "$RUNNER_TEMP/ci-plan.json"
+      - name: Create the gate evidence root
+        run: mkdir -p "$RUNNER_TEMP/gate-evidence"
       - name: Download the Python 3.12 gate evidence
+        if: steps.plan.outputs.core == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -288,6 +395,7 @@ jobs:
             }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/core-python-3.12
       - name: Download the Python 3.13 gate evidence
+        if: steps.plan.outputs.core == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -295,6 +403,7 @@ jobs:
             }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/core-python-3.13
       - name: Download the production desktop TAP gate evidence
+        if: steps.plan.outputs.desktop == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -302,6 +411,7 @@ jobs:
             github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/desktop-production-tap
       - name: Download the archive lifecycle gate evidence
+        if: steps.plan.outputs.packaging == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -309,6 +419,7 @@ jobs:
             github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/desktop-archive-lifecycle
       - name: Download the installed core gate evidence
+        if: steps.plan.outputs.desktop == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -316,6 +427,7 @@ jobs:
             github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/desktop-installed-core
       - name: Download the archive SBOM gate evidence
+        if: steps.plan.outputs.packaging == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -323,6 +435,7 @@ jobs:
             github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/desktop-archive-sbom
       - name: Download the RPM lifecycle gate evidence
+        if: steps.plan.outputs.packaging == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
@@ -330,16 +443,18 @@ jobs:
             github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/desktop-rpm-lifecycle
       - name: Download the native payload fixture gate evidence
+        if: steps.plan.outputs.desktop == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: >-
             gate-desktop-native-payload-fixture-${{ env.TONGS_CHECKED_OUT_SHA }}-${{
             github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/gate-evidence/desktop-native-payload-fixture
-      - name: Require the complete production check set and every receipt
+      - name: Require the selected check set and every receipt
         run: >-
           python3 tests/ci/verify_desktop_production_gate.py
           --evidence-root "$RUNNER_TEMP/gate-evidence"
+          --plan "$RUNNER_TEMP/ci-plan.json"
           --commit "$TONGS_CHECKED_OUT_SHA"
           --tree "${{ steps.identity.outputs.tree }}"
           --repository "$GITHUB_REPOSITORY"

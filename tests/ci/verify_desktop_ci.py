@@ -1,61 +1,136 @@
-"""Reject incomplete aggregate results and skipped MCP test reports."""
+"""Verify the aggregate's lane results and reject skipped MCP test reports.
+
+The ``aggregate`` command reads the effective lane plan the aggregate job wrote
+and the ``toJSON(needs)`` results of ordinary CI.  The needed job set must be
+exactly the lane jobs plus ``changes``.  A lane the effective plan selected must
+report ``success``; a lane it deselected must report exactly ``skipped``, so a
+deselected lane that still ran proves the wiring drifted and fails.  ``changes``
+must succeed unless the effective plan is the full graph and every lane
+succeeded, in which case the aggregate records that it fell back to the full
+graph.
+"""
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
-REQUIRED_GATE_JOBS = frozenset(
-    {
-        "lint-and-format",
-        "core",
-        "desktop-fixtures",
-        "fedora-podman",
-        "desktop-production",
-    }
-)
+ROOT = Path(__file__).resolve().parents[2]
+CI_PLAN_PROGRAM = "tests/ci/ci_plan.py"
+#: One shared module name, so both verifiers see the same ``Plan`` class.
+CI_PLAN_MODULE = "tongs_ci_plan"
 
 
 class VerificationError(ValueError):
     """Raised when required CI evidence is absent or inconsistent."""
 
 
-def verify_aggregate_results(raw_results: str) -> None:
-    """Require the exact desktop gate job set and a success result for each job."""
+def _load_ci_plan() -> ModuleType:
+    loaded = sys.modules.get(CI_PLAN_MODULE)
+    if loaded is not None:
+        return loaded
+    path = ROOT / CI_PLAN_PROGRAM
+    specification = importlib.util.spec_from_file_location(CI_PLAN_MODULE, path)
+    if specification is None or specification.loader is None:
+        raise VerificationError(f"unable to load {path}")
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[CI_PLAN_MODULE] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+CI_PLAN = _load_ci_plan()
+
+REQUIRED_GATE_JOBS: frozenset[str] = frozenset(CI_PLAN.LANE_CI_JOBS.values()) | {
+    CI_PLAN.CHANGES_JOB
+}
+
+
+def load_plan(path: Path) -> Any:
+    """Read the effective plan file strictly."""
+
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise VerificationError(f"effective plan is unreadable: {path}") from error
+    try:
+        return CI_PLAN.Plan.from_json(text)
+    except ValueError as error:
+        raise VerificationError(f"effective plan is malformed: {error}") from error
+
+
+def verify_job_set(
+    raw_results: str, expected: dict[str, frozenset[str]], label: str
+) -> dict[str, str]:
+    """Require the exact job set and an allowed result for each job."""
+
+    if not isinstance(raw_results, str) or not raw_results.strip():
+        raise VerificationError(f"{label} results are absent")
     try:
         results: Any = json.loads(raw_results)
     except json.JSONDecodeError as error:
-        raise VerificationError("aggregate results are malformed JSON") from error
-
+        raise VerificationError(f"{label} results are malformed JSON") from error
     if not isinstance(results, dict):
-        raise VerificationError("aggregate results must be a JSON object")
+        raise VerificationError(f"{label} results must be a JSON object")
 
     actual_jobs = set(results)
-    if actual_jobs != REQUIRED_GATE_JOBS:
-        missing = sorted(REQUIRED_GATE_JOBS - actual_jobs)
-        unexpected = sorted(actual_jobs - REQUIRED_GATE_JOBS)
+    if actual_jobs != set(expected):
+        missing = sorted(set(expected) - actual_jobs)
+        unexpected = sorted(actual_jobs - set(expected))
         raise VerificationError(
-            f"aggregate job set mismatch: missing={missing}, unexpected={unexpected}"
+            f"{label} job set mismatch: missing={missing}, unexpected={unexpected}"
         )
 
+    observed: dict[str, str] = {}
     rejected: list[str] = []
-    for name in sorted(REQUIRED_GATE_JOBS):
+    for name in sorted(expected):
         job = results[name]
         if not isinstance(job, dict):
             rejected.append(f"{name}=malformed")
             continue
         result = job.get("result")
-        if result != "success":
-            rejected.append(f"{name}={result!r}")
+        if result not in expected[name]:
+            allowed = "|".join(sorted(expected[name]))
+            rejected.append(f"{name}={result!r} (expected {allowed})")
+            continue
+        observed[name] = result
     if rejected:
         raise VerificationError(
-            "required jobs did not all succeed: " + ", ".join(rejected)
+            f"{label} jobs did not match the effective plan: " + ", ".join(rejected)
         )
+    return observed
+
+
+def verify_aggregate_results(raw_results: str, plan: Any) -> None:
+    """Require every selected lane to succeed and every other lane to skip."""
+
+    try:
+        expected = CI_PLAN.expected_ci_results(plan)
+    except (AttributeError, ValueError) as error:
+        raise VerificationError(f"effective plan is invalid: {error}") from error
+    if set(expected) != REQUIRED_GATE_JOBS:
+        raise VerificationError("lane policy does not cover the aggregate job set")
+    verify_job_set(raw_results, expected, "aggregate")
+
+
+def fallback_note(raw_results: str, plan: Any) -> str | None:
+    """Describe a verified fallback to the full graph, if one happened."""
+
+    results = json.loads(raw_results)
+    changes = results[CI_PLAN.CHANGES_JOB]["result"]
+    if plan.full and changes != "success":
+        return (
+            f"changes reported {changes!r}, so the aggregate fell back to the full "
+            "graph and every lane succeeded"
+        )
+    return None
 
 
 def _integer_attribute(suite: ET.Element, attribute: str, path: Path) -> int:
@@ -120,7 +195,8 @@ def verify_mcp_junit(path: Path) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("aggregate", help="verify DESKTOP_GATE_RESULTS")
+    aggregate = commands.add_parser("aggregate", help="verify DESKTOP_GATE_RESULTS")
+    aggregate.add_argument("--plan", required=True, type=Path)
     mcp_report = commands.add_parser("mcp-report", help="verify an MCP JUnit report")
     mcp_report.add_argument("--path", required=True, type=Path)
     return parser
@@ -130,13 +206,21 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "aggregate":
-            verify_aggregate_results(os.environ.get("DESKTOP_GATE_RESULTS", ""))
+            plan = load_plan(args.plan)
+            raw_results = os.environ.get("DESKTOP_GATE_RESULTS", "")
+            verify_aggregate_results(raw_results, plan)
+            note = fallback_note(raw_results, plan)
+            if note is not None:
+                print(note)
+            selected = ", ".join(lane for lane in CI_PLAN.LANES if lane in plan.lanes)
+            graph = "full graph" if plan.full else "reduced graph"
+            print(f"Effective plan: {graph}; selected lanes: {selected or 'none'}")
         else:
             verify_mcp_junit(args.path)
     except VerificationError as error:
-        print(f"Desktop CI verification failed: {error}", file=sys.stderr)
+        print(f"CI verification failed: {error}", file=sys.stderr)
         return 1
-    print(f"Desktop CI {args.command} evidence verified")
+    print(f"CI {args.command} evidence verified")
     return 0
 
 
