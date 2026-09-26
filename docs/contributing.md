@@ -41,8 +41,11 @@ for the desktop build and tests. Documentation changes should pass
 Keep pull requests small and focused, fill in the short template, and sign off
 each commit with `git commit -s`
 ([Developer Certificate of Origin](https://developercertificate.org/)). CI runs
-the full test suite on Python 3.12 and 3.13 plus the desktop tests, and a
-maintainer reviews the change.
+the checks that match the paths you changed, from the docs build to the full
+test suite on Python 3.12 and 3.13 plus the desktop tests, and reports them in
+one `CI aggregate` check. The
+[CI guide](https://github.com/andre-motta/tongs/blob/main/.agents/ci/README.md#hosted-workflows)
+lists which paths run which checks. A maintainer reviews the change.
 
 ## Reporting a security issue
 

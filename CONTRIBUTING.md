@@ -54,8 +54,9 @@ npm ci --prefix desktop
    ```
 
    Run `ruff format <file>` to fix formatting.
-4. Open a pull request and fill in the short template. CI runs the full suite on
-   Python 3.12 and 3.13 and the desktop tests. A maintainer will review it.
+4. Open a pull request and fill in the short template. CI runs the checks for
+   the paths you changed, and the `CI aggregate` check reports the result. A
+   maintainer will review it.
 
 Small, focused pull requests are easier to review and land faster than large
 ones.
@@ -79,7 +80,8 @@ than a gigabyte of memory while it formats the error.
 ### Documentation changes
 
 Docs live in `docs/` and are published to [tongs.tools](https://www.tongs.tools).
-No pull request check builds the site, so build it locally:
+A pull request that changes them runs the docs check, which builds the site
+strictly and lints the Markdown. Build it locally first:
 
 ```bash
 mkdocs build --strict
@@ -157,8 +159,9 @@ Terminal plugins use the `tongs.plugins` entry point and desktop plugins use
 
 ## Maintainers
 
-CI workflows, release steps, packaging checks, and what to do when a CI job
-fails are covered in the [CI and release guide](.agents/ci/README.md).
+CI workflows, which checks a change runs, release steps, packaging checks, and
+what to do when a CI job fails are covered in the
+[CI and release guide](.agents/ci/README.md).
 
 ## Security
 
