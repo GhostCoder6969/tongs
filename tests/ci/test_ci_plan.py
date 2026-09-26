@@ -918,12 +918,16 @@ def test_the_program_runs_standalone_with_the_standard_library() -> None:
 
 # No rule without the desktop lane may cover the sidecar's import closure.
 
+# Paths are reported relative to the directory containing the tongs package, so
+# the test works from a source checkout and from an installed wheel alike.
 _CLOSURE_PROBE = """
-import json, sys
+import json, os, sys
+import tongs
 import tongs.desktop.sidecar
 import tongs.desktop.protocol.server
+root = os.path.dirname(os.path.dirname(os.path.abspath(tongs.__file__)))
 print(json.dumps(sorted(
-    module.__file__
+    os.path.relpath(os.path.abspath(module.__file__), root).replace(os.sep, "/")
     for name, module in list(sys.modules.items())
     if (name == "tongs" or name.startswith("tongs."))
     and getattr(module, "__file__", None)
@@ -939,12 +943,12 @@ def test_the_sidecar_import_closure_always_selects_desktop() -> None:
         cwd=ROOT,
         check=True,
     )
-    source = (ROOT / "src").resolve()
     closure = []
-    for file in json.loads(completed.stdout):
-        path = Path(file).resolve()
-        assert path.is_relative_to(source), f"tongs imported from outside src: {path}"
-        closure.append(path.relative_to(ROOT).as_posix())
+    for relative in json.loads(completed.stdout):
+        assert relative.startswith("tongs/"), (
+            f"unexpected tongs module path: {relative}"
+        )
+        closure.append(f"src/{relative}")
     assert "src/tongs/desktop/sidecar.py" in closure
     assert "src/tongs/desktop/protocol/server.py" in closure
     offenders = []
