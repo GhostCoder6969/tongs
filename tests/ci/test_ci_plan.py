@@ -4,8 +4,8 @@ Layer 1 is :func:`classify_paths` over literal paths, one case per rule
 pattern plus the unmatched fallback.  The fail-closed cases drive
 :func:`compute_plan` through a scripted git so every doubt is shown to select
 the full graph, and a real repository proves rename and merge-parent handling.
-The import-closure drift test protects the TUI rule: nothing the desktop
-sidecar imports may be classified into a plan that skips the desktop lane.
+The import-closure drift test keeps the desktop lane honest: nothing the
+desktop sidecar imports may be classified into a plan that skips it.
 """
 
 from __future__ import annotations
@@ -54,8 +54,12 @@ BASE = "b" * 40
 HEAD = "a" * 40
 ZERO = "0" * 40
 DOCS = frozenset({"docs"})
-TUI = frozenset({"lint", "core"})
+TUI = frozenset({"lint", "core", "desktop"})
+CORE_TESTS = frozenset({"lint", "core"})
 README = frozenset({"docs", "core"})
+SIDECAR = frozenset({"lint", "core", "desktop_fixtures", "desktop"})
+PACKAGING = SIDECAR | {"packaging"}
+SPIKES = frozenset({"desktop_fixtures"})
 
 
 def test_the_agreed_constants() -> None:
@@ -129,9 +133,57 @@ LAYER_ONE: list[tuple[str, frozenset[str] | None]] = [
     ("src/tongs/mcp/server.py", TUI),
     ("src/tongs/app.py", TUI),
     ("src/tongs/commands.py", TUI),
+    ("src/tongs/helpers.py", TUI),
     ("src/tongs/__main__.py", TUI),
-    ("tests/test_config.py", TUI),
-    ("tests/test_tui_session.py", TUI),
+    # CORE TESTS
+    ("tests/test_config.py", CORE_TESTS),
+    ("tests/test_tui_session.py", CORE_TESTS),
+    ("tests/test_cache/test_store.py", CORE_TESTS),
+    ("tests/test_diff/test_parser.py", CORE_TESTS),
+    ("tests/test_forges/test_github.py", CORE_TESTS),
+    ("tests/test_mcp/test_server.py", CORE_TESTS),
+    ("tests/test_plugins/test_registry.py", CORE_TESTS),
+    ("tests/test_scanner/test_remote.py", CORE_TESTS),
+    ("tests/test_views/test_inbox.py", CORE_TESTS),
+    ("tests/test_widgets/test_mr_table.py", CORE_TESTS),
+    # SIDECAR
+    ("src/tongs/cache/store.py", SIDECAR),
+    ("src/tongs/config.py", SIDECAR),
+    ("src/tongs/desktop/sidecar.py", SIDECAR),
+    ("src/tongs/desktop/protocol/server.py", SIDECAR),
+    ("src/tongs/diff/parser.py", SIDECAR),
+    ("src/tongs/errors.py", SIDECAR),
+    ("src/tongs/forges/github.py", SIDECAR),
+    ("src/tongs/plugins/desktop.py", SIDECAR),
+    ("src/tongs/scanner/discovery.py", SIDECAR),
+    ("src/tongs/services/session.py", SIDECAR),
+    ("src/tongs/state/drafts/store.py", SIDECAR),
+    ("src/tongs/tui_services.py", SIDECAR),
+    ("tests/__init__.py", SIDECAR),
+    ("tests/desktop/test_sidecar.py", SIDECAR),
+    ("tests/desktop/electron/app.test.mjs", SIDECAR),
+    ("tests/fixtures/builder_mr_3113.diff", SIDECAR),
+    ("tests/integration/desktop/installed_core_composition.py", SIDECAR),
+    ("tests/plugins/conftest.py", SIDECAR),
+    ("tests/services/test_session.py", SIDECAR),
+    ("tests/state/test_drafts.py", SIDECAR),
+    ("examples/desktop-plugin/pyproject.toml", SIDECAR),
+    # PACKAGING
+    ("LICENSE", PACKAGING),
+    ("scripts/build_desktop_archive.py", PACKAGING),
+    ("scripts/build_desktop_sbom.py", PACKAGING),
+    ("src/tongs/__init__.py", PACKAGING),
+    ("src/tongs/desktop/artifact_contract/models.py", PACKAGING),
+    ("src/tongs/desktop/installer/metadata.py", PACKAGING),
+    ("tests/integration/desktop/archive_evidence.py", PACKAGING),
+    ("tests/integration/desktop/candidate_attestation.py", PACKAGING),
+    ("tests/integration/desktop/rpm_payload_contract.py", PACKAGING),
+    ("tests/integration/desktop/sbom_evidence.py", PACKAGING),
+    ("tests/desktop/installer/fixtures/wheel.json", PACKAGING),
+    ("tests/packaging/desktop/sbom/schema/spdx-2.3.schema.json", PACKAGING),
+    # SPIKES
+    ("spikes/desktop/README.md", SPIKES),
+    ("spikes/desktop/tests/test_backend.py", SPIKES),
     # FULL rules
     (".github/workflows/ci.yml", None),
     (".github/workflows/docs.yml", None),
@@ -139,26 +191,20 @@ LAYER_ONE: list[tuple[str, frozenset[str] | None]] = [
     ("tests/ci/ci_plan.py", None),
     ("tests/ci/test_ci_plan.py", None),
     ("tests/containers/fedora-44/Containerfile", None),
-    # Unmatched, therefore full
-    ("src/tongs/forges/github.py", None),
-    ("src/tongs/config.py", None),
-    ("src/tongs/helpers.py", None),
-    ("src/tongs/__init__.py", None),
-    ("src/tongs/desktop/sidecar.py", None),
     ("pyproject.toml", None),
-    ("LICENSE", None),
-    (".gitignore", None),
-    ("desktop/package.json", None),
+    ("requirements/installer-verifier.lock", None),
     ("packaging/rpm/tongs.spec", None),
+    ("desktop/package.json", None),
+    (".gitignore", None),
+    # Unmatched, therefore full
+    ("src/tongs/new_module.py", None),
+    ("scripts/new_tool.py", None),
+    ("examples/other-plugin/setup.py", None),
     (".github/CODEOWNERS", None),
-    ("tests/__init__.py", None),
     ("tests/conftest.py", None),
-    ("tests/test_mcp/test_server.py", None),
-    ("tests/test_views/test_inbox.py", None),
-    ("tests/desktop/test_sidecar.py", None),
+    ("tests/test_new/test_x.py", None),
     # Path, never extension: nested markdown and lookalike names stay full
     ("src/tongs/NOTES.md", None),
-    ("spikes/desktop/README.md", None),
     ("src/tongs/views.py", None),
     ("src/tongs/app.py.orig", None),
     ("docs", None),
@@ -211,7 +257,50 @@ def test_matching_rules_add_their_lanes_together() -> None:
     lanes, full, _ = classify_paths(["docs/index.md", "README.md"])
     assert not full and lanes == README
     lanes, full, _ = classify_paths(["docs/index.md", "src/tongs/forges/github.py"])
+    assert not full and lanes == DOCS | SIDECAR
+    lanes, full, _ = classify_paths(["src/tongs/views/x.py", "spikes/desktop/a.py"])
+    assert not full and lanes == TUI | SPIKES
+    lanes, full, _ = classify_paths(["docs/index.md", "src/tongs/new_module.py"])
     assert full and lanes == ALL_LANES
+
+
+# One case per path class of the widened table.
+
+PATH_CLASSES: list[tuple[str, frozenset[str] | None]] = [
+    ("src/tongs/views/x.py", TUI),
+    ("src/tongs/forges/x.py", SIDECAR),
+    ("src/tongs/__init__.py", PACKAGING),
+    ("pyproject.toml", None),
+    ("tests/fixtures/x", SIDECAR),
+    ("tests/containers/x", None),
+]
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"), PATH_CLASSES, ids=[p for p, _ in PATH_CLASSES]
+)
+def test_each_path_class(path: str, expected: frozenset[str] | None) -> None:
+    lanes, full, _ = classify_paths([path])
+    if expected is None:
+        assert full and lanes == ALL_LANES
+        assert "fedora_podman" in lanes
+        return
+    assert not full and lanes == expected
+    assert "fedora_podman" not in lanes
+
+
+def test_only_full_paths_select_the_fedora_podman_probe() -> None:
+    for rule in RULES:
+        assert rule.full or "fedora_podman" not in close_lanes(rule.lanes), rule.name
+
+
+def test_packaging_is_selected_only_by_the_packaging_rule_or_the_full_graph() -> None:
+    selecting = [
+        rule.name
+        for rule in RULES
+        if not rule.full and "packaging" in close_lanes(rule.lanes)
+    ]
+    assert selecting == ["packaging"]
 
 
 def test_adding_paths_can_only_add_lanes() -> None:
@@ -393,9 +482,14 @@ def test_a_docs_only_pull_request_selects_the_docs_lane() -> None:
     assert not plan.full and plan.lanes == DOCS and plan.checked_out == MERGE
 
 
-def test_a_tui_only_pull_request_selects_lint_and_core() -> None:
+def test_a_tui_pull_request_selects_lint_core_and_desktop() -> None:
     plan = _compute(diff=("src/tongs/views/inbox.py", "tests/test_commands.py"))
     assert not plan.full and plan.lanes == TUI
+
+
+def test_a_core_tests_only_pull_request_selects_lint_and_core() -> None:
+    plan = _compute(diff=("tests/test_commands.py", "tests/test_views/test_inbox.py"))
+    assert not plan.full and plan.lanes == CORE_TESTS
 
 
 @pytest.mark.parametrize(
@@ -589,7 +683,7 @@ def test_the_explain_command_prints_the_plan(repository: Path) -> None:
         check=True,
     )
     assert "reduced graph" in completed.stdout
-    assert "Lanes: lint, core" in completed.stdout
+    assert "Lanes: lint, core, desktop" in completed.stdout
     assert "src/tongs/widgets/x.py" in completed.stdout
 
 
@@ -822,7 +916,7 @@ def test_the_program_runs_standalone_with_the_standard_library() -> None:
     assert completed.stdout == render_table()
 
 
-# The TUI rule must never cover the desktop sidecar's import closure.
+# No rule without the desktop lane may cover the sidecar's import closure.
 
 _CLOSURE_PROBE = """
 import json, sys
