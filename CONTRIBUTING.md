@@ -51,32 +51,13 @@ npm ci --prefix desktop
 
 Substantial initiatives follow the [project SDLC profile](docs/SDLC.md), a
 repository-only document that is excluded from the published documentation site.
-It defines the roles, dependent work items, isolated worktrees, independent
-review, local integration, and CTO design and upstream gates. Roles are named by
-function: an orchestrator owns architecture, scheduling, and integration; a
-senior contributor and a separate senior reviewer handle senior implementation
-and independent review; a bounded contributor handles well-specified assignments
-under senior review. Small fixes use the relevant checks without requiring an
-initiative or agent team.
+Small fixes need only the relevant checks and a PR.
 
-The models actually selected for those roles on the desktop initiative are
-Claude Fable 5.1 as orchestrator, Claude Opus 5 at high effort for senior
-implementation and for the separate independent review, and Claude Sonnet 5 at
-xhigh effort for bounded work under that senior review. Record the model and
-effort setting actually used in the handoff. The role names above are the
-contract; the model assignment is a current choice and can change.
-
-Desktop work uses issue-linked `feat/desktop-<issue>-<slug>` branches in isolated
-worktrees. Open PRs against `feat/desktop-app` with dependencies, exact tested
-commits, checks, and functional evidence. Independent senior review precedes
-integration. The orchestrator owns the feature branch and resolves integration
-conflicts. The complete feature is presented as one evidence-backed PR into
-`main` for CTO review.
-
-Every change is reviewed for architecture, security, UX, and QE. Native
-hardware-accelerated Electron on the supported Fedora host is a separate
-production and release gate. A headless test result does not substitute for
-that evidence.
+Every change is reviewed for architecture, security, UX, and QE, with review
+depth matched to risk: security, auth, data handling, lifecycle, packaging, and
+release changes get the closest review. Native hardware-accelerated Electron on
+the supported Fedora host is a separate release gate; a headless test result
+does not substitute for that evidence.
 
 ## Running tests
 

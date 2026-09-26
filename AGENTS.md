@@ -8,27 +8,11 @@ Node.js 22.12+.
 
 ## Agent Workflow
 
-For substantial initiatives, use the installed `agent-sdlc` skill and read the
-[project SDLC profile](docs/SDLC.md), a repository-only document that is excluded
-from the published site. Roles are named by function, not by any vendor's
-model codename: an **orchestrator** owns architecture, scheduling, and
-integration; a **senior contributor** and a separate **senior reviewer** handle
-senior implementation and independent review; a **bounded contributor** handles
-well-specified assignments under senior review. Select actual runtime models and
-record the model and effort setting actually used. Keep small fixes proportional.
-
-The models selected for the desktop initiative are Claude Fable 5.1 as
-orchestrator, Claude Opus 5 at high effort for senior implementation and for the
-separate independent review, and Claude Sonnet 5 at xhigh effort for bounded
-work under that review. The role names are the contract; the model assignment is
-a current choice.
-
-For the desktop initiative, the orchestrator owns `feat/desktop-app`. Agents use
-isolated `feat/desktop-<issue>-<slug>` branches and PRs into that branch, with
-independent senior review and orchestrator integration. Every change is
-issue-tracked with explicit dependencies. Only the final feature PR goes to `main`
-for CTO review. Hardware GPU acceleration is a mandatory production and release
-gate; see the profile for evidence requirements.
+For substantial initiatives, use the installed `agent-sdlc` skill (0.2.1) and the
+[project SDLC profile](docs/SDLC.md), a repository-only document excluded from
+the published site. Small fixes skip it. Agents inherit the session model;
+record the model actually used in the co-author trailer. Hardware GPU
+acceleration remains a desktop release gate; see the profile.
 
 This file is the shared repository guide for coding agents; every agent that works in this repository reads it. Read `README.md` for product context and the relevant subsystem guides below before changing code. The `.agents/*/README.md` files are reference documentation to read explicitly.
 
@@ -108,7 +92,7 @@ from native Fedora, GPU, installer, and release evidence.
 
 ## Git Commits
 
-- For approved SDLC initiatives, contributors may create coherent signed-off local commits in their assigned worktrees without per-commit approval. For desktop work, assigned contributor branch pushes and PRs into `feat/desktop-app` are authorized; the orchestrator alone integrates. The final PR into `main` requires CTO acceptance before merge. Other initiatives retain their existing upstream gates. For other work, preserve the existing requirement to approve the full commit message before committing.
+- For approved SDLC initiatives, agents may create signed-off local commits in their assigned worktrees and integrate locally without per-commit approval; pushes, PRs, and merges follow the profile's upstream path. For other work, approve the full commit message before committing.
 - Include a one-line description body after the title, separated by a blank line, before any trailers.
 - Use `git commit -s` to add the sign-off automatically; do not write `Signed-off-by` manually.
 - When a model produced the commit, add a co-author trailer naming the vendor that actually produced it. Every agent working on this project runs on an Anthropic model, so the trailer is `Co-Authored-By: Claude <model> <noreply@anthropic.com>`, with the actual model name and no context-window annotation. Do not claim co-authorship by a vendor that did not produce the commit.
