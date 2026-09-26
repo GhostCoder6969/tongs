@@ -36,6 +36,10 @@ Pass these to workflows as the `rules` argument:
 > `npm test`). Assert on strings, counts, and booleans, never on DOM nodes inside
 > `waitFor` or `assert`. If a run is OOM-killed, stop and report; do not retry.
 > Reviewers do not run reverted-source negative controls of desktop tests.
+> The core and Fedora probe JUnit checks reject any skipped test: never add
+> `pytest.skip` to `tests/`. Tests that need a git work tree carry
+> `@pytest.mark.needs_git`, which the Fedora probe deselects. Tests must pass
+> from a checkout and from an installed wheel (the probe runs Python 3.14).
 > Forge writes during testing go only to the `tongs-test-sandbox` repositories
 > on GitHub and GitLab; never delete anything on a forge.
 
