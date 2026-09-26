@@ -190,10 +190,12 @@ RULES: tuple[Rule, ...] = (
     ),
     # The wheel's readme, so the core lane builds it as well as the docs lane.
     Rule(name="readme", patterns=("README.md",), lanes=frozenset({"docs", "core"})),
-    # Terminal-only modules and the suites only the core lane runs.  None of
-    # them is in the desktop sidecar import closure or imported by a desktop
-    # job's tests, which the drift tests in test_ci_plan.py and
-    # test_ci_plan_drift.py keep honest.
+    # Terminal modules.  The sidecar never imports them, but the desktop
+    # installed-core job builds the core wheel and launches the installed
+    # ``tongs`` TUI under an audit hook that fails on forbidden imports,
+    # process spawns and connections during startup.  Their startup path is
+    # therefore a desktop input, without packaging.  test_ci_plan_drift.py
+    # starts the TUI headless and checks every tongs module it loads.
     Rule(
         name="tui",
         patterns=(
@@ -204,6 +206,14 @@ RULES: tuple[Rule, ...] = (
             "src/tongs/commands.py",
             "src/tongs/helpers.py",
             "src/tongs/__main__.py",
+        ),
+        lanes=frozenset({"lint", "core", "desktop"}),
+    ),
+    # The suites only the core lane runs.  None of them is imported by a
+    # desktop job's tests, which test_ci_plan_drift.py keeps honest.
+    Rule(
+        name="core-tests",
+        patterns=(
             "tests/test_*.py",
             "tests/test_cache/**",
             "tests/test_diff/**",

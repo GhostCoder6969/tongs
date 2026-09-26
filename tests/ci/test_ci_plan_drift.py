@@ -11,6 +11,8 @@ inputs from their sources instead of restating them:
   them in a subprocess;
 * the repository files the desktop jobs' pytest targets import, by collecting
   them in a subprocess;
+* the tongs modules the installed-core job's audited TUI launch loads, by
+  starting the ``tongs`` console entry point headless in a subprocess;
 * every tracked file, which must match an explicit rule unless it is on the
   allowlist below with a reason.
 
@@ -19,10 +21,12 @@ The sidecar import-closure test stays in ``test_ci_plan.py``.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import subprocess
 import sys
+import tomllib
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
@@ -40,6 +44,11 @@ PRODUCTION_PREFIX = "desktop-production.yml:"
 #: The job runs ``pip install ./examples/desktop-plugin``, so collection of
 #: its tests needs the example package importable.
 EXAMPLE_PLUGIN_SOURCE = ROOT / "examples/desktop-plugin/src"
+INSTALLED_CORE_JOB = PRODUCTION_PREFIX + "installed-core"
+INSTALLED_CORE_PROGRAM = "tests/integration/desktop/installed_core_composition.py"
+INSTALLED_CORE_AUDIT = ROOT / (
+    "tests/integration/desktop/installed_core_audit_sitecustomize.py"
+)
 SYNTHETIC_CHILD = "ci-plan-drift-synthetic-child.txt"
 
 #: Tracked paths deliberately left to the unmatched full-graph fallback,
@@ -347,6 +356,102 @@ def test_everything_the_desktop_suites_import_selects_desktop(
     imported = json.loads(completed.stdout)
     assert "src/tongs/tui_services.py" in imported
     paths = {path: "imported by a desktop suite" for path in imported}
+    assert _offenders(paths, "desktop") == []
+
+
+# The installed-core job launches the installed ``tongs`` TUI under an audit
+# hook, so every tongs module that startup loads is a desktop input.
+
+_STARTUP_PROBE = """
+import asyncio, importlib, json, os, pathlib, sys, tempfile
+
+root = pathlib.Path(sys.argv[1])
+module_name, _, attribute = sys.argv[2].partition(":")
+home = pathlib.Path(tempfile.mkdtemp(prefix="ci-plan-startup-"))
+os.environ["HOME"] = str(home)
+for key, relative in (
+    ("XDG_CACHE_HOME", ".cache"),
+    ("XDG_CONFIG_HOME", ".config"),
+    ("XDG_DATA_HOME", ".local/share"),
+):
+    os.environ[key] = str(home / relative)
+
+import textual.app
+
+screens = []
+
+
+def headless_run(self, *args, **kwargs):
+    async def drive():
+        async with self.run_test(size=(120, 34)) as pilot:
+            await pilot.pause()
+            screens.append(type(self.screen).__module__)
+
+    asyncio.run(drive())
+
+
+textual.app.App.run = headless_run
+entry_point = getattr(importlib.import_module(module_name), attribute)
+status = entry_point([])
+files = set()
+for name, module in list(sys.modules.items()):
+    file = getattr(module, "__file__", None)
+    if not file or not (name == "tongs" or name.startswith("tongs.")):
+        continue
+    files.add(pathlib.Path(file).resolve().relative_to(root).as_posix())
+print(json.dumps({
+    "files": sorted(files),
+    "modules": sorted(sys.modules),
+    "screens": screens,
+    "status": status,
+}))
+"""
+
+
+def _audit_forbidden_imports() -> tuple[str, ...]:
+    tree = ast.parse(INSTALLED_CORE_AUDIT.read_text())
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "_FORBIDDEN_IMPORTS"
+        ):
+            return tuple(ast.literal_eval(node.value))
+    raise AssertionError("the installed-core audit has no _FORBIDDEN_IMPORTS")
+
+
+def test_everything_the_installed_core_startup_loads_selects_desktop() -> None:
+    assert any(
+        entry.program == INSTALLED_CORE_PROGRAM and INSTALLED_CORE_JOB in entry.jobs
+        for entry in ENTRY_POINTS
+    ), "installed-core no longer runs the audited TUI launch"
+    scripts = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["scripts"]
+    completed = subprocess.run(
+        [sys.executable, "-c", _STARTUP_PROBE, str(ROOT), scripts["tongs"]],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=False,
+        timeout=300,
+    )
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)
+    assert report["status"] == 0
+    assert report["screens"] == ["tongs.views.inbox"], report["screens"]
+    loaded = report["files"]
+    for expected in ("src/tongs/app.py", "src/tongs/views/inbox.py"):
+        assert expected in loaded
+    # The audit fails the job on these imports; the core lane has them all
+    # installed, so name any that startup reaches here as well.
+    forbidden = _audit_forbidden_imports()
+    assert "tongs.mcp.server" in forbidden
+    assert [
+        name
+        for name in report["modules"]
+        if any(name == prefix or name.startswith(prefix + ".") for prefix in forbidden)
+    ] == []
+    paths = {path: "loaded by the installed-core TUI startup" for path in loaded}
     assert _offenders(paths, "desktop") == []
 
 

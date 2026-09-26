@@ -4,8 +4,8 @@ Layer 1 is :func:`classify_paths` over literal paths, one case per rule
 pattern plus the unmatched fallback.  The fail-closed cases drive
 :func:`compute_plan` through a scripted git so every doubt is shown to select
 the full graph, and a real repository proves rename and merge-parent handling.
-The import-closure drift test protects the TUI rule: nothing the desktop
-sidecar imports may be classified into a plan that skips the desktop lane.
+The import-closure drift test keeps the desktop lane honest: nothing the
+desktop sidecar imports may be classified into a plan that skips it.
 """
 
 from __future__ import annotations
@@ -54,7 +54,8 @@ BASE = "b" * 40
 HEAD = "a" * 40
 ZERO = "0" * 40
 DOCS = frozenset({"docs"})
-TUI = frozenset({"lint", "core"})
+TUI = frozenset({"lint", "core", "desktop"})
+CORE_TESTS = frozenset({"lint", "core"})
 README = frozenset({"docs", "core"})
 SIDECAR = frozenset({"lint", "core", "desktop_fixtures", "desktop"})
 PACKAGING = SIDECAR | {"packaging"}
@@ -134,16 +135,17 @@ LAYER_ONE: list[tuple[str, frozenset[str] | None]] = [
     ("src/tongs/commands.py", TUI),
     ("src/tongs/helpers.py", TUI),
     ("src/tongs/__main__.py", TUI),
-    ("tests/test_config.py", TUI),
-    ("tests/test_tui_session.py", TUI),
-    ("tests/test_cache/test_store.py", TUI),
-    ("tests/test_diff/test_parser.py", TUI),
-    ("tests/test_forges/test_github.py", TUI),
-    ("tests/test_mcp/test_server.py", TUI),
-    ("tests/test_plugins/test_registry.py", TUI),
-    ("tests/test_scanner/test_remote.py", TUI),
-    ("tests/test_views/test_inbox.py", TUI),
-    ("tests/test_widgets/test_mr_table.py", TUI),
+    # CORE TESTS
+    ("tests/test_config.py", CORE_TESTS),
+    ("tests/test_tui_session.py", CORE_TESTS),
+    ("tests/test_cache/test_store.py", CORE_TESTS),
+    ("tests/test_diff/test_parser.py", CORE_TESTS),
+    ("tests/test_forges/test_github.py", CORE_TESTS),
+    ("tests/test_mcp/test_server.py", CORE_TESTS),
+    ("tests/test_plugins/test_registry.py", CORE_TESTS),
+    ("tests/test_scanner/test_remote.py", CORE_TESTS),
+    ("tests/test_views/test_inbox.py", CORE_TESTS),
+    ("tests/test_widgets/test_mr_table.py", CORE_TESTS),
     # SIDECAR
     ("src/tongs/cache/store.py", SIDECAR),
     ("src/tongs/config.py", SIDECAR),
@@ -480,9 +482,14 @@ def test_a_docs_only_pull_request_selects_the_docs_lane() -> None:
     assert not plan.full and plan.lanes == DOCS and plan.checked_out == MERGE
 
 
-def test_a_tui_only_pull_request_selects_lint_and_core() -> None:
+def test_a_tui_pull_request_selects_lint_core_and_desktop() -> None:
     plan = _compute(diff=("src/tongs/views/inbox.py", "tests/test_commands.py"))
     assert not plan.full and plan.lanes == TUI
+
+
+def test_a_core_tests_only_pull_request_selects_lint_and_core() -> None:
+    plan = _compute(diff=("tests/test_commands.py", "tests/test_views/test_inbox.py"))
+    assert not plan.full and plan.lanes == CORE_TESTS
 
 
 @pytest.mark.parametrize(
@@ -676,7 +683,7 @@ def test_the_explain_command_prints_the_plan(repository: Path) -> None:
         check=True,
     )
     assert "reduced graph" in completed.stdout
-    assert "Lanes: lint, core" in completed.stdout
+    assert "Lanes: lint, core, desktop" in completed.stdout
     assert "src/tongs/widgets/x.py" in completed.stdout
 
 
@@ -909,7 +916,7 @@ def test_the_program_runs_standalone_with_the_standard_library() -> None:
     assert completed.stdout == render_table()
 
 
-# The TUI rule must never cover the desktop sidecar's import closure.
+# No rule without the desktop lane may cover the sidecar's import closure.
 
 _CLOSURE_PROBE = """
 import json, sys
