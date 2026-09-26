@@ -1,11 +1,12 @@
 """Tests for forge registry."""
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from tongs.errors import AuthError
+from tongs.forges.http import RefreshingTokenAuth
 from tongs.forges.registry import ForgeRegistry, _github_api_base, _gitlab_api_base
 from tongs.scanner.repo import ForgeType
 
@@ -75,6 +76,22 @@ class TestForgeRegistry:
         registry = ForgeRegistry()
         with pytest.raises(AuthError, match="Unknown forge host"):
             await registry.get_client("bitbucket.org")
+
+    @pytest.mark.asyncio
+    async def test_get_client_refreshes_token_for_its_host(self):
+        registry = ForgeRegistry()
+        with (
+            patch("tongs.forges.registry.resolve_token", return_value="tok"),
+            patch(
+                "tongs.forges.registry.refresh_token", return_value="fresh"
+            ) as refresh,
+        ):
+            client = await registry.get_client("gitlab.com")
+            auth = client._http.auth
+            assert isinstance(auth, RefreshingTokenAuth)
+            assert auth._refresh() == "fresh"
+        refresh.assert_called_once_with("gitlab.com", ForgeType.GITLAB)
+        await registry.close_all()
 
     @pytest.mark.asyncio
     async def test_close_all_clears_cache(self):

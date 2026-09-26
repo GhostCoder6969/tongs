@@ -7,7 +7,12 @@ from unittest.mock import patch
 import pytest
 
 from tongs.errors import AuthError
-from tongs.forges.auth import _token_from_cli, _token_from_netrc, resolve_token
+from tongs.forges.auth import (
+    _token_from_cli,
+    _token_from_netrc,
+    refresh_token,
+    resolve_token,
+)
 from tongs.scanner.repo import ForgeType
 
 
@@ -92,7 +97,7 @@ class TestResolveToken:
 class TestTokenFromCli:
     def test_cli_returns_token_on_success(self):
         result = subprocess.CompletedProcess(
-            args=["glab", "auth", "token", "--hostname", "gitlab.com"],
+            args=["glab", "config", "get", "token", "--host", "gitlab.com"],
             returncode=0,
             stdout="glpat-abc123\n",
             stderr="",
@@ -103,7 +108,7 @@ class TestTokenFromCli:
 
     def test_cli_returns_none_on_nonzero_exit(self):
         result = subprocess.CompletedProcess(
-            args=["glab", "auth", "token", "--hostname", "gitlab.com"],
+            args=["glab", "config", "get", "token", "--host", "gitlab.com"],
             returncode=1,
             stdout="",
             stderr="not logged in",
@@ -113,7 +118,7 @@ class TestTokenFromCli:
 
     def test_cli_returns_none_on_empty_stdout(self):
         result = subprocess.CompletedProcess(
-            args=["glab", "auth", "token", "--hostname", "gitlab.com"],
+            args=["glab", "config", "get", "token", "--host", "gitlab.com"],
             returncode=0,
             stdout="   \n",
             stderr="",
@@ -144,9 +149,10 @@ class TestTokenFromCli:
         cmd = mock_run.call_args[0][0]
         assert cmd == [
             "glab",
-            "auth",
+            "config",
+            "get",
             "token",
-            "--hostname",
+            "--host",
             "gitlab.cee.redhat.com",
         ]
 
@@ -168,3 +174,47 @@ class TestTokenFromCli:
             _token_from_cli("github.corp.com", ForgeType.GITHUB)
         cmd = mock_run.call_args[0][0]
         assert cmd == ["gh", "auth", "token", "--hostname", "github.corp.com"]
+
+
+class TestRefreshToken:
+    def test_gitlab_triggers_glab_refresh_before_resolving(self):
+        calls = []
+        ok = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            return ok
+
+        with (
+            patch("tongs.forges.auth.subprocess.run", side_effect=run),
+            patch("tongs.forges.auth.resolve_token", return_value="fresh") as resolve,
+        ):
+            token = refresh_token("gitlab.com", ForgeType.GITLAB)
+        assert token == "fresh"
+        assert calls == [["glab", "auth", "status", "--hostname", "gitlab.com"]]
+        resolve.assert_called_once_with("gitlab.com", ForgeType.GITLAB)
+
+    def test_gitlab_resolves_even_when_glab_missing(self):
+        with (
+            patch("tongs.forges.auth.subprocess.run", side_effect=FileNotFoundError),
+            patch("tongs.forges.auth.resolve_token", return_value="netrc-token"),
+        ):
+            assert refresh_token("gitlab.com", ForgeType.GITLAB) == "netrc-token"
+
+    def test_github_does_not_run_glab(self):
+        with (
+            patch("tongs.forges.auth.subprocess.run") as run,
+            patch("tongs.forges.auth.resolve_token", return_value="gh-token"),
+        ):
+            assert refresh_token("github.com", ForgeType.GITHUB) == "gh-token"
+        run.assert_not_called()
+
+    def test_returns_none_when_no_credentials(self):
+        with (
+            patch("tongs.forges.auth.subprocess.run", side_effect=FileNotFoundError),
+            patch(
+                "tongs.forges.auth.resolve_token",
+                side_effect=AuthError("No credentials found"),
+            ),
+        ):
+            assert refresh_token("gitlab.com", ForgeType.GITLAB) is None

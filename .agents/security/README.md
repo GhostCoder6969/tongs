@@ -4,14 +4,15 @@
 
 `src/tongs/forges/auth.py:resolve_token()` resolves a token lazily per host:
 
-1. GitLab `glab auth token --hostname <host>` or GitHub `gh auth token`
+1. GitLab `glab config get token --host <host>` or GitHub `gh auth token`
    (`--hostname` for enterprise)
 2. `.netrc`, with owner-only permissions required on POSIX
 3. optional system keyring lookup under service `tongs` and the hostname
 4. a forge-specific `AuthError`
 
 CLI calls use argument arrays, no shell, captured output, and a five-second
-timeout. Tokens live only in trusted Python memory and the `httpx.AsyncClient`
+timeout (fifteen seconds for the `glab auth status` refresh that runs after a
+401). Tokens live only in trusted Python memory and the `httpx.AsyncClient`
 Authorization header. Never put a token in configuration, environment variables,
 cache keys or values, protocol frames, renderer state, plugin manifests, logs,
 command arguments, or user-visible errors.

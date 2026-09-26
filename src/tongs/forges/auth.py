@@ -5,6 +5,7 @@ Cascade: CLI credential store -> .netrc -> keyring -> error with instructions.
 
 from __future__ import annotations
 
+import logging
 import netrc
 import stat
 import subprocess
@@ -14,12 +15,14 @@ from pathlib import Path
 from tongs.errors import AuthError
 from tongs.scanner.repo import ForgeType
 
+log = logging.getLogger(__name__)
+
 
 def resolve_token(hostname: str, forge_type: ForgeType) -> str:
     """Resolve an auth token for the given host.
 
     Tries in order:
-    1. CLI credential store (gh auth token / glab auth token)
+    1. CLI credential store (gh auth token / glab config get token)
     2. ~/.netrc
     3. System keyring (requires optional ``keyring`` package)
     4. Raises AuthError with setup instructions
@@ -50,6 +53,24 @@ def resolve_token(hostname: str, forge_type: ForgeType) -> str:
     )
 
 
+def refresh_token(hostname: str, forge_type: ForgeType) -> str | None:
+    """Resolve a replacement token after the current one was rejected.
+
+    glab only refreshes an expired OAuth token when it makes an API request, so
+    run ``glab auth status`` (a GET /user) first; it persists the refreshed
+    token for the ``glab config get token`` lookup in :func:`resolve_token`.
+    Returns ``None`` when no credential can be resolved.
+    """
+    if forge_type == ForgeType.GITLAB:
+        _run_cli(["glab", "auth", "status", "--hostname", hostname], timeout=15)
+
+    try:
+        return resolve_token(hostname, forge_type)
+    except AuthError as e:
+        log.debug("Token refresh for %s failed: %s", hostname, e)
+        return None
+
+
 def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
     """Extract token from gh/glab CLI credential store."""
     if forge_type == ForgeType.GITHUB:
@@ -57,24 +78,34 @@ def _token_from_cli(hostname: str, forge_type: ForgeType) -> str | None:
         if hostname != "github.com":
             cmd.extend(["--hostname", hostname])
     else:
-        cmd = ["glab", "auth", "token", "--hostname", hostname]
+        # glab has no `auth token` subcommand; `config get token` returns the
+        # stored credential, including OAuth and keyring-backed tokens.
+        cmd = ["glab", "config", "get", "token", "--host", hostname]
 
-    try:
-        result = subprocess.run(
-            cmd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    result = _run_cli(cmd, timeout=5)
+    if result is None:
         return None
 
     if result.returncode != 0:
+        log.debug("%s exited with %d; skipping CLI token", cmd[0], result.returncode)
         return None
 
     token = result.stdout.strip()
     return token if token else None
+
+
+def _run_cli(cmd: list[str], timeout: float) -> subprocess.CompletedProcess | None:
+    """Run a forge CLI command, returning ``None`` if it is missing or hangs."""
+    try:
+        return subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
 
 
 def _token_from_netrc(hostname: str) -> str | None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 
@@ -14,7 +16,13 @@ from tongs.errors import (
     NotFoundError,
     RateLimitError,
 )
-from tongs.forges.http import map_http_error, paginate, request
+from tongs.forges.http import (
+    RefreshingTokenAuth,
+    create_client,
+    map_http_error,
+    paginate,
+    request,
+)
 
 
 class _FakeResponse:
@@ -285,3 +293,136 @@ class TestPaginate:
             result = await paginate(client, "/items", per_page=3, max_pages=2)
         # 2 pages * 3 items each = 6 items
         assert len(result) == 6
+
+
+def _auth_client(handler, auth: httpx.Auth) -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://gitlab.example.com/api/v4",
+        auth=auth,
+    )
+
+
+class TestRefreshingTokenAuth:
+    @pytest.mark.asyncio
+    async def test_sends_bearer_token(self):
+        seen = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            seen.append(req.headers["Authorization"])
+            return httpx.Response(200, json={})
+
+        refresh_calls = []
+        auth = RefreshingTokenAuth("tok-1", lambda: refresh_calls.append(1))
+        async with _auth_client(handler, auth) as client:
+            await request(client, "GET", "/user")
+        assert seen == ["Bearer tok-1"]
+        assert refresh_calls == []
+
+    @pytest.mark.asyncio
+    async def test_retries_once_with_refreshed_token_on_401(self):
+        seen = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            seen.append(req.headers["Authorization"])
+            if req.headers["Authorization"] == "Bearer expired":
+                return httpx.Response(401, json={"message": "401 Unauthorized"})
+            return httpx.Response(200, json={"ok": True})
+
+        auth = RefreshingTokenAuth("expired", lambda: "fresh")
+        async with _auth_client(handler, auth) as client:
+            result = await request(client, "GET", "/user")
+            # Later requests keep using the refreshed token.
+            await request(client, "GET", "/user")
+        assert result == {"ok": True}
+        assert seen == ["Bearer expired", "Bearer fresh", "Bearer fresh"]
+
+    @pytest.mark.asyncio
+    async def test_retried_post_resends_body(self):
+        bodies = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            bodies.append(req.content)
+            if req.headers["Authorization"] == "Bearer expired":
+                return httpx.Response(401, json={})
+            return httpx.Response(201, json={"id": 1})
+
+        auth = RefreshingTokenAuth("expired", lambda: "fresh")
+        async with _auth_client(handler, auth) as client:
+            await request(client, "POST", "/notes", json={"body": "hi"})
+        assert len(bodies) == 2
+        assert bodies[0] == bodies[1] == b'{"body":"hi"}'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("refreshed", [None, "same"])
+    async def test_raises_auth_error_when_refresh_gives_nothing_new(self, refreshed):
+        calls = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            calls.append(req.headers["Authorization"])
+            return httpx.Response(401, json={"message": "401 Unauthorized"})
+
+        auth = RefreshingTokenAuth("same", lambda: refreshed)
+        async with _auth_client(handler, auth) as client:
+            with pytest.raises(AuthError):
+                await request(client, "GET", "/user")
+        assert calls == ["Bearer same"]
+
+    @pytest.mark.asyncio
+    async def test_refresh_error_surfaces_original_401(self):
+        def refresh():
+            raise AuthError("No credentials found")
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json={"message": "401 Unauthorized"})
+
+        auth = RefreshingTokenAuth("expired", refresh)
+        async with _auth_client(handler, auth) as client:
+            with pytest.raises(AuthError, match="Authentication failed"):
+                await request(client, "GET", "/user")
+
+    @pytest.mark.asyncio
+    async def test_gives_up_when_refreshed_token_also_rejected(self):
+        calls = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            calls.append(req.headers["Authorization"])
+            return httpx.Response(401, json={})
+
+        auth = RefreshingTokenAuth("expired", lambda: "also-bad")
+        async with _auth_client(handler, auth) as client:
+            with pytest.raises(AuthError):
+                await request(client, "GET", "/user")
+        assert calls == ["Bearer expired", "Bearer also-bad"]
+
+    @pytest.mark.asyncio
+    async def test_concurrent_401s_refresh_once(self):
+        refresh_calls = []
+
+        def refresh():
+            refresh_calls.append(1)
+            return "fresh"
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            if req.headers["Authorization"] == "Bearer expired":
+                return httpx.Response(401, json={})
+            return httpx.Response(200, json={})
+
+        auth = RefreshingTokenAuth("expired", refresh)
+        async with _auth_client(handler, auth) as client:
+            await asyncio.gather(*(request(client, "GET", "/user") for _ in range(5)))
+        assert refresh_calls == [1]
+
+
+class TestCreateClient:
+    def test_static_token_header_without_refresh(self):
+        client = create_client("https://gitlab.example.com/api/v4", "tok")
+        assert client.headers["Authorization"] == "Bearer tok"
+        assert client.auth is None
+
+    def test_refreshing_auth_with_refresh(self):
+        client = create_client(
+            "https://gitlab.example.com/api/v4", "tok", refresh=lambda: None
+        )
+        assert "Authorization" not in client.headers
+        assert isinstance(client.auth, RefreshingTokenAuth)
