@@ -207,7 +207,7 @@ notification with the count of discovered repos and configured forge hosts.
 
 ### 1. Create the package
 
-```
+```text
 tongs-stats-plugin/
     pyproject.toml
     src/

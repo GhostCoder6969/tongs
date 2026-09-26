@@ -1,0 +1,26 @@
+// Markdown lint configuration for the CI docs lane. The ci.yml docs job runs
+// markdownlint-cli2 (pinned in package-lock.json) with this file over
+// docs/**/*.md and the root *.md files.
+{
+  "config": {
+    "default": true,
+    // House style keeps prose lines unwrapped or wrapped by hand.
+    "MD013": false,
+    // Tables are aligned by hand, not to a single column style.
+    "MD060": false,
+    // mkdocs-material admonitions and content tabs indent their bodies, which
+    // this rule misreads as indented code blocks.
+    "MD046": false,
+    // The README and the site home page open with an HTML hero or a
+    // second-level release heading instead of a top-level heading.
+    "MD041": false,
+    // Repeated subsection names are fine under different parents.
+    "MD024": { "siblings_only": true },
+    // HTML used for the README badges and the mkdocs-material hero.
+    "MD033": { "allowed_elements": ["a", "br", "div", "img", "p", "strong"] },
+    // Headings such as the site tagline may end with a full stop.
+    "MD026": { "punctuation": ",;:!" },
+    // A list interrupted by a code block may continue its numbering.
+    "MD029": { "style": "ordered" }
+  }
+}

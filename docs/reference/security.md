@@ -103,7 +103,7 @@ the Sigstore public-good trust root through `Verifier.production()`.
 The installer requires an exact identity rather than merely a valid signature.
 For a release tagged `v<version>`, the signing identity must be
 
-```
+```text
 https://github.com/andre-motta/tongs/.github/workflows/release-desktop.yml@refs/tags/v<version>
 ```
 

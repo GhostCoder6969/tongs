@@ -75,7 +75,7 @@ glab auth login --hostname gitlab.example.com
 
 If neither CLI is available, tongs falls back to `~/.netrc` entries:
 
-```
+```text
 machine github.com
   login your-username
   password ghp_your_token

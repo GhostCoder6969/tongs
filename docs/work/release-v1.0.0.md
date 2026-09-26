@@ -625,7 +625,7 @@ producer emits, so the reviewed set and the produced set stop matching, and the
 `Materialize the exact-mode payload contract` step of `rpm-lifecycle` fails
 before any digest is compared:
 
-```
+```text
 producer checksum list does not cover the reviewed accepted file set:
 missing=['tongs-desktop-0.5.0-fedora44-x86_64.tar.gz'],
 unexpected=['tongs-desktop-1.0.0-fedora44-x86_64.tar.gz']
@@ -783,6 +783,7 @@ workflow, the tagged source lacking the publication jobs or the notes file,
 immutable releases disabled, a missing dry run, a signing job holding build
 authority, and mutating a published release instead of preparing a corrective
 version.
+
 ## 9. Desktop release publication from the version tag
 
 Added by the change that made one `vX.Y.Z` tag publish the desktop. It is the
