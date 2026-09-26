@@ -1,8 +1,8 @@
 # Tongs SDLC profile
 
-Tongs uses Agent SDLC **0.2.1**, maintained in the private
+Tongs uses Agent SDLC **0.2.3**, maintained in the private
 [agent-sdlc repository](https://github.com/andre-motta/agent-sdlc)
-(source commit `aafdbc5`). The installed `agent-sdlc` skill describes the
+(source commit `25b7d7a`). The installed `agent-sdlc` skill describes the
 lifecycle and workflows; this profile holds the Tongs-specific values. The
 skill is an orchestration aid, not a prerequisite: contributors without it
 follow [CONTRIBUTING.md](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md).
@@ -17,7 +17,7 @@ PR. The lifecycle is for multi-item, architectural, or risky initiatives.
 | Tracker | GitHub Issues on `andre-motta/tongs`; milestones per release (for example `v1.0.1`); native sub-issue and blocking links |
 | Default branch | `main`. PRs merge with merge commits |
 | Integration | Local integration branch `claude/<initiative>` in a worktree; one PR into `main` per initiative, or per coherent slice when the CTO wants earlier review. A long-running shared `feat/<initiative>` branch only when the CTO asks for one |
-| Worktree root | `.worktrees/` (git-ignored). Item branches `claude/<initiative>/<item>`. Remove worktrees when they merge |
+| Worktree root | `.worktrees/` (git-ignored). Item branches `claude/<initiative>-<item>`, so they never collide with the integration branch `claude/<initiative>`. Remove worktrees when they merge |
 | Setup | Checkout-local `.venv`; `python -m pip install -e ".[dev,mcp]" ruff`; desktop: `npm ci --prefix desktop` |
 | Focused checks | Tests for the changed subsystem plus `ruff check` and `ruff format --check` on changed files |
 | Integrated checks | `pytest`, `ruff check src/ tests/`, `ruff format --check src/ tests/`; desktop changes add `npm run build --prefix desktop` and the desktop suite; docs changes add `mkdocs build --strict` |
@@ -51,8 +51,10 @@ release artifacts. This is a release gate, not a per-PR check.
 
 ## Publication effects
 
-- PRs and pushes to `main` run CI (`ci.yml`). The desktop release workflow runs
-  on its own path filters and on `v*` tags.
+- PRs and pushes to `main` run CI (`ci.yml`). A PR runs only the lanes its
+  changed paths select, with the `CI aggregate` as the required check; pushes
+  to `main` and the `ci:full` label run the full graph. The desktop release
+  workflow runs on its own path filters and on `v*` tags.
 - Pushes to `main` deploy the MkDocs site. Everything under `docs/` is public
   except this file, `docs/site-plan.md`, and `docs/work/`, which `mkdocs.yml`
   excludes.
