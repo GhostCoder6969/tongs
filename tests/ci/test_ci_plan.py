@@ -54,7 +54,8 @@ BASE = "b" * 40
 HEAD = "a" * 40
 ZERO = "0" * 40
 DOCS = frozenset({"docs"})
-TUI = frozenset({"lint", "core", "desktop"})
+TUI = frozenset({"lint", "core"})
+CORE_READ_DOCS = frozenset({"docs", "core"})
 CORE_TESTS = frozenset({"lint", "core"})
 README = frozenset({"docs", "core"})
 SIDECAR = frozenset({"lint", "core", "desktop_fixtures", "desktop"})
@@ -115,7 +116,7 @@ LAYER_ONE: list[tuple[str, frozenset[str] | None]] = [
     ("docs/stylesheets/extra.css", DOCS),
     ("docs/snippet.py", DOCS),
     ("mkdocs.yml", DOCS),
-    (".agents/testing/README.md", DOCS),
+    (".agents/testing/README.md", CORE_READ_DOCS),
     ("CONTRIBUTING.md", DOCS),
     ("AGENTS.md", DOCS),
     ("SECURITY.md", DOCS),
@@ -124,11 +125,14 @@ LAYER_ONE: list[tuple[str, frozenset[str] | None]] = [
     (".github/PULL_REQUEST_TEMPLATE.md", DOCS),
     (".github/PULL_REQUEST_TEMPLATE/feature.md", DOCS),
     (".github/FUNDING.yml", DOCS),
-    (".github/linters/.markdownlint-cli2.yaml", DOCS),
+    (".github/linters/.markdownlint-cli2.yaml", CORE_READ_DOCS),
     # README
     ("README.md", README),
     # TUI
     ("src/tongs/views/inbox.py", TUI),
+    (".agents/ci/README.md", CORE_READ_DOCS),
+    (".agents/testing/README.md", CORE_READ_DOCS),
+    (".github/linters/package-lock.json", CORE_READ_DOCS),
     ("src/tongs/widgets/diff_panel.py", TUI),
     ("src/tongs/mcp/server.py", TUI),
     ("src/tongs/app.py", TUI),
@@ -482,7 +486,7 @@ def test_a_docs_only_pull_request_selects_the_docs_lane() -> None:
     assert not plan.full and plan.lanes == DOCS and plan.checked_out == MERGE
 
 
-def test_a_tui_pull_request_selects_lint_core_and_desktop() -> None:
+def test_a_tui_pull_request_selects_lint_and_core() -> None:
     plan = _compute(diff=("src/tongs/views/inbox.py", "tests/test_commands.py"))
     assert not plan.full and plan.lanes == TUI
 
@@ -683,7 +687,7 @@ def test_the_explain_command_prints_the_plan(repository: Path) -> None:
         check=True,
     )
     assert "reduced graph" in completed.stdout
-    assert "Lanes: lint, core, desktop" in completed.stdout
+    assert "Lanes: lint, core\n" in completed.stdout
     assert "src/tongs/widgets/x.py" in completed.stdout
 
 

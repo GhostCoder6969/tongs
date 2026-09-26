@@ -65,17 +65,42 @@ DESKTOP_JOBS = frozenset(
 )
 
 
-def _tracked_files() -> list[str]:
-    output = subprocess.run(
+def _tracked_files() -> frozenset[str]:
+    # The Fedora probe copies the source without .git, so this cannot run at
+    # import time; tests that need the tracked set skip without a work tree.
+    completed = subprocess.run(
         ["git", "ls-files", "-z"],
         capture_output=True,
         cwd=ROOT,
-        check=True,
-    ).stdout.decode("utf-8")
-    return [path for path in output.split("\0") if path]
+        check=False,
+    )
+    if completed.returncode != 0:
+        return frozenset()
+    return frozenset(
+        path for path in completed.stdout.decode("utf-8").split("\0") if path
+    )
 
 
-TRACKED = frozenset(_tracked_files())
+class _Tracked:
+    """The git-tracked file set, loaded on first use."""
+
+    _files: frozenset[str] | None = None
+
+    def get(self) -> frozenset[str]:
+        if self._files is None:
+            self._files = _tracked_files()
+        if not self._files:
+            pytest.skip("needs a git work tree (the source copy has no .git)")
+        return self._files
+
+    def __contains__(self, path: object) -> bool:
+        return path in self.get()
+
+    def __iter__(self):
+        return iter(self.get())
+
+
+TRACKED = _Tracked()
 
 
 def _selects(path: str, lane: str) -> bool:
@@ -445,7 +470,7 @@ def _audit_forbidden_imports() -> tuple[str, ...]:
     raise AssertionError("the installed-core audit has no _FORBIDDEN_IMPORTS")
 
 
-def test_everything_the_installed_core_startup_loads_selects_desktop() -> None:
+def test_every_shared_module_the_installed_core_startup_loads_selects_desktop() -> None:
     assert any(
         entry.program == INSTALLED_CORE_PROGRAM and INSTALLED_CORE_JOB in entry.jobs
         for entry in ENTRY_POINTS
@@ -475,7 +500,14 @@ def test_everything_the_installed_core_startup_loads_selects_desktop() -> None:
         for name in report["modules"]
         if any(name == prefix or name.startswith(prefix + ".") for prefix in forbidden)
     ] == []
-    paths = {path: "loaded by the installed-core TUI startup" for path in loaded}
+    # TUI modules deliberately skip desktop (CTO decision); every other module
+    # the startup loads is shared with the desktop jobs and must select it.
+    tui = next(rule for rule in RULES if rule.name == "tui")
+    paths = {
+        path: "loaded by the installed-core TUI startup"
+        for path in loaded
+        if not tui.matches(path)
+    }
     assert _offenders(paths, "desktop") == []
 
 
