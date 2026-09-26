@@ -83,7 +83,7 @@ nav:
 
 ## Page structure
 
-```
+```text
 docs/
   index.md                    # Landing page / hero
   getting-started.md          # First-run guide
@@ -225,7 +225,7 @@ Mirror CONTRIBUTING.md with additional detail:
 
 ### Priority recordings (create first)
 
-1. **Hero demo** (30 seconds) -- launch tongs, see inbox populate, open an MR, scroll the diff, leave an inline comment, approve. This is the single most impactful asset. Record with `vhs` (https://github.com/charmbracelet/vhs) for reproducibility.
+1. **Hero demo** (30 seconds) -- launch tongs, see inbox populate, open an MR, scroll the diff, leave an inline comment, approve. This is the single most impactful asset. Record with `vhs` (<https://github.com/charmbracelet/vhs>) for reproducibility.
 
 2. **Comment workflow** (15 seconds) -- navigate to a diff line, select multiple lines, press F3, edit suggestion in $EDITOR, see it post. Demonstrates the most unique feature.
 

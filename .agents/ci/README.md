@@ -81,30 +81,91 @@ mkdocs build --strict
 
 ## Hosted workflows
 
-Pull requests to `main` and `feat/desktop-app` run `.github/workflows/ci.yml`.
-Its required `Desktop pre-merge aggregate` accepts an exact revision only when
-Ruff, Python 3.12 and 3.13 core/MCP tests, desktop fixture and production shell
-tests, and the Fedora 44 Podman probe succeed. A skipped, cancelled, missing, or
-failed required job fails the aggregate. A new commit supersedes earlier
-results.
+Pull requests to `main` and every push to `main` run `.github/workflows/ci.yml`.
+Its lanes are selected by the paths a change touches. The first job, `Plan CI
+lanes`, runs `tests/ci/ci_plan.py compute` on the checked-out synthetic merge
+commit, classifies the paths it changes relative to its first parent, and
+publishes one output per lane; each lane job runs only when its lane is
+selected. `tests/ci/ci_plan.py` is the single source of that policy, and the
+table below is generated from it:
 
-`ci.yml` is not the only workflow a `feat/desktop-app` pull request triggers.
-One more runs on that base:
+<!-- ci-lanes:begin -->
+| Rule | Paths | Lanes |
+| --- | --- | --- |
+| docs | `docs/**`, `mkdocs.yml`, `.agents/**`, `*.md`, `.github/ISSUE_TEMPLATE/**`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/**`, `.github/FUNDING.yml`, `.github/linters/**` | docs |
+| readme | `README.md` | docs, core |
+| core-read-docs | `.agents/ci/README.md`, `.agents/testing/README.md`, `.github/linters/**` | docs, core |
+| tui | `src/tongs/views/**`, `src/tongs/widgets/**`, `src/tongs/mcp/**`, `src/tongs/app.py`, `src/tongs/commands.py`, `src/tongs/helpers.py`, `src/tongs/__main__.py` | lint, core |
+| core-tests | `tests/test_*.py`, `tests/test_cache/**`, `tests/test_diff/**`, `tests/test_forges/**`, `tests/test_mcp/**`, `tests/test_plugins/**`, `tests/test_scanner/**`, `tests/test_views/**`, `tests/test_widgets/**` | lint, core |
+| sidecar | `src/tongs/cache/**`, `src/tongs/config.py`, `src/tongs/desktop/**`, `src/tongs/diff/**`, `src/tongs/errors.py`, `src/tongs/forges/**`, `src/tongs/plugins/**`, `src/tongs/scanner/**`, `src/tongs/services/**`, `src/tongs/state/**`, `src/tongs/tui_services.py`, `tests/__init__.py`, `tests/desktop/**`, `tests/fixtures/**`, `tests/integration/**`, `tests/plugins/**`, `tests/services/**`, `tests/state/**`, `examples/desktop-plugin/**` | lint, core, desktop_fixtures, desktop |
+| packaging | `LICENSE`, `scripts/build_desktop_archive.py`, `scripts/build_desktop_sbom.py`, `src/tongs/__init__.py`, `src/tongs/desktop/artifact_contract/**`, `src/tongs/desktop/installer/**`, `tests/integration/desktop/archive_evidence.py`, `tests/integration/desktop/candidate_attestation.py`, `tests/integration/desktop/rpm_payload_contract.py`, `tests/integration/desktop/sbom_evidence.py`, `tests/desktop/installer/fixtures/**`, `tests/packaging/**` | lint, core, desktop_fixtures, desktop, packaging |
+| spikes | `spikes/**` | desktop_fixtures |
+| ci-infrastructure | `.github/workflows/**`, `.github/scripts/**`, `tests/ci/**`, `tests/containers/**` | full graph |
+| build-configuration | `pyproject.toml`, `requirements/**`, `packaging/**`, `desktop/**`, `.gitignore` | full graph |
+| (unmatched) | any other path | full graph |
+
+Matching rules add their lanes together, and a push to `main`, the `ci:full` label or any doubt about the diff selects the full graph.
+<!-- ci-lanes:end -->
+
+| Lane | `ci.yml` job |
+|---|---|
+| `docs` | `Docs build`: `mkdocs build --strict` and the pinned Markdown linter |
+| `lint` | `Lint and format`: Ruff over `src/`, `tests/` and `packaging/` |
+| `core` | `Core and MCP` on Python 3.12 and 3.13 |
+| `desktop_fixtures` | `Desktop fixture checks`: the spike fixtures and the production Electron shell suite |
+| `fedora_podman` | `Fedora 44 Podman` probe |
+| `desktop` | `Desktop production evidence`: source identity, the production shell, installed core and native payload |
+| `packaging` | the archive, archive evidence, SBOM and RPM lifecycle jobs of `Desktop production evidence` (implies `desktop`) |
+
+The plan fails closed. Any doubt selects the full graph and records why: an
+event other than `pull_request`, a checkout that is not the expected two-parent
+merge of the pull request head, a missing or zero SHA, any git error, an empty
+diff, a path that matches no rule, or any unexpected exception. Changes to the
+rules themselves live under `tests/ci/**`, and every workflow and build
+configuration path also selects the full graph, so a rule change always runs
+everything. Every push to `main` runs the full graph.
+
+To force the full graph on a pull request, add the `ci:full` label. `ci.yml`
+reruns on any label event, not only `ci:full`, and each new run of a pull
+request cancels its in-flight run; pushes to `main` never cancel each other.
+Removing `ci:full` does not start a run, so the reduced plan takes effect on the
+next push.
+
+Preview the plan for a local branch before pushing:
+
+```bash
+python tests/ci/ci_plan.py explain --base origin/main
+python tests/ci/ci_plan.py explain --base origin/main --label ci:full
+```
+
+It diffs `HEAD` against its merge base with `--base` and prints the changed
+paths, the lanes, the `ci.yml` jobs that would run, and the reasons.
+
+The single required check is the always-run `CI aggregate` (job
+`desktop-pr-gate`). It recomputes the plan itself, unions it with the planning
+job's plan (or uses the full graph when that job did not succeed or its plan is
+unreadable), and then requires every selected lane to succeed and every
+deselected lane to report exactly `skipped`. A failed, cancelled or missing
+selected lane fails the aggregate, and so does a deselected lane that ran. A new
+commit supersedes earlier results.
+
+One more workflow runs on pull requests:
 
 | Workflow | Trigger |
 |---|---|
-| `release-desktop.yml` (Unpublished desktop candidate attestation) | PRs into `feat/desktop-app` matching its path filter; pushes to either of its two named branches, `feat/desktop-app` and `feat/desktop-120-candidate-attestation`; pushes of a stable `vX.Y.Z` tag; and a manual `workflow_dispatch` dry run |
+| `release-desktop.yml` (Unpublished desktop candidate attestation) | PRs into `main` matching its path filter; pushes to its named branches; pushes of a stable `vX.Y.Z` tag; and a manual `workflow_dispatch` dry run |
 
 `desktop-rpm.yml` (Desktop Fedora RPM), `desktop-python-rpms.yml` (Desktop Python
 companion RPMs) and `desktop-archive.yml` (Reproducible desktop archive) are manual
 only (`workflow_dispatch`); the production gate's `rpm-lifecycle` and `archive` jobs
 prove the same source rebuild, companion closure, lifecycle and byte-identical
-rebuild against the receipt-bound fresh archive on every pull request.
+rebuild against the receipt-bound fresh archive on every pull request that
+selects the `packaging` lane.
 
-`docs.yml` runs `mkdocs build --strict` and deploys the site to GitHub Pages,
-but only on a push to `main` or a manual `workflow_dispatch`. No pull-request
-check builds the documentation, which is why the strict build belongs in your
-local run.
+`docs.yml` deploys the site to GitHub Pages on a push to `main` or a manual
+`workflow_dispatch`. On pull requests the `docs` lane of `ci.yml` builds the
+site strictly and lints the Markdown, so a documentation-only change runs that
+lane alone.
 
 ## Releases
 
@@ -147,7 +208,7 @@ may already be gone.
 
 **A partial re-run fails closed, by design.** Re-running only the failed jobs
 does not re-run the jobs that passed, so those jobs never upload artifacts under
-the new attempt number, and `Desktop pre-merge aggregate` cannot download the
+the new attempt number, and `CI aggregate` cannot download the
 complete receipt set it requires. That is intended: the aggregate asserts that
 one attempt produced every receipt for one revision. To get a green aggregate,
 re-run all jobs or push a new commit.
@@ -167,8 +228,8 @@ The Fedora harness interface is:
 tests/containers/run-fedora-44.sh --output-dir <empty-directory-outside-checkout>
 ```
 
-The production desktop release assembly gate is still separate from this
-pre-merge aggregate. Do not describe a fixture, Podman, or headless Node run as
+The production desktop release assembly gate is still separate from the
+`CI aggregate`. Do not describe a fixture, Podman, or headless Node run as
 native Fedora, GPU, installer, signing, RPM, or release acceptance.
 
 ## Local Node limits

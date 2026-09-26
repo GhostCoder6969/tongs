@@ -291,6 +291,8 @@ def main() -> int:
                         "-m",
                         "pytest",
                         "-q",
+                        "-m",
+                        "not needs_git",
                         str(SOURCE / "tests"),
                         f"--junitxml={OUTPUT / 'core-tests.junit.xml'}",
                     ],

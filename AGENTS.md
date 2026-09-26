@@ -8,7 +8,7 @@ Node.js 22.12+.
 
 ## Agent Workflow
 
-For substantial initiatives, use the installed `agent-sdlc` skill (0.2.1) and the
+For substantial initiatives, use the installed `agent-sdlc` skill (0.2.3) and the
 [project SDLC profile](docs/SDLC.md), a repository-only document excluded from
 the published site. Small fixes skip it. Agents inherit the session model;
 record the model actually used in the co-author trailer. Hardware GPU
@@ -99,7 +99,7 @@ from native Fedora, GPU, installer, and release evidence.
 
 ## Module Map
 
-```
+```text
 src/tongs/
   __main__.py              # CLI entry, argument routing, and desktop subcommand dispatch
   app.py, tui_services.py  # Textual app and adapter over shared services
@@ -155,34 +155,38 @@ scripts/                   # Repository maintenance and evidence helpers
 The terminal application, shared services, GitHub and GitLab backends, cache,
 durable review drafts, MCP server, production Electron shell, bounded sidecar
 protocol, desktop provider host, installer, and artifact contracts are
-implemented in this tree. `.github/workflows/ci.yml` currently requires Ruff,
-Python 3.12 and 3.13 core/MCP tests, desktop fixture and production shell tests,
-and the Fedora 44 Podman probe through `Desktop pre-merge aggregate`.
+implemented in this tree. `.github/workflows/ci.yml` selects its lanes (docs,
+lint, core, desktop fixtures, the Fedora 44 Podman probe, desktop production
+evidence, and packaging) by the paths a pull request changes, using the rules
+in `tests/ci/ci_plan.py`. Any doubt fails closed to the full graph, as do rule
+changes under `tests/ci/**`, the `ci:full` label, and every push to `main`.
+Preview a branch with `python tests/ci/ci_plan.py explain --base origin/main`.
+The single required check is the always-run `CI aggregate`, which recomputes
+the plan and requires every selected lane to succeed and every other lane to
+skip. The [CI guide](.agents/ci/README.md#hosted-workflows) has the lane table
+and the label and cancellation rules.
 
-`ci.yml` is not the only workflow that runs on a `feat/desktop-app` pull request.
-One more also triggers on that base:
-
-| Workflow | Trigger |
-|---|---|
-| `release-desktop.yml` (Unpublished desktop candidate attestation) | PRs into `feat/desktop-app` matching its path filter, and pushes to either of its two named branches, `feat/desktop-app` and `feat/desktop-120-candidate-attestation` |
+`release-desktop.yml` (Unpublished desktop candidate attestation) also runs on
+pull requests into `main` that match its path filter, on pushes to its named
+branches, on stable `vX.Y.Z` tags, and on a manual `workflow_dispatch` dry run.
 
 `desktop-rpm.yml` (Desktop Fedora RPM), `desktop-python-rpms.yml` (Desktop Python
 companion RPMs) and `desktop-archive.yml` (Reproducible desktop archive) are manual
 only (`workflow_dispatch`); the production gate's `rpm-lifecycle` and `archive` jobs
 prove the same source rebuild, companion closure, lifecycle and byte-identical
-rebuild against the receipt-bound fresh archive on every pull request.
+rebuild against the receipt-bound fresh archive whenever the `packaging` lane
+is selected.
 
-`docs.yml` deploys the site and runs `mkdocs build --strict`, but only on a push
-to `main` or a manual `workflow_dispatch`. No pull-request check builds the
-documentation, so run the strict build locally before submitting a `docs/` or
-`mkdocs.yml` change.
+`docs.yml` deploys the site on a push to `main` or a manual
+`workflow_dispatch`. On pull requests the `docs` lane of `ci.yml` runs
+`mkdocs build --strict` and the pinned Markdown linter.
 
-`publish.yml` is the only workflow that runs on a tag: it matches `v*` and
-publishes to PyPI. Nothing listens for `desktop-v*`, and no workflow creates a
+`publish.yml` and `release-desktop.yml` run on stable `vX.Y.Z` tags: the first
+publishes the core to PyPI, the second builds, attests and publishes the desktop
 GitHub Release. Tags match no `branches:` filter, so a tag push runs neither
 `ci.yml` nor `docs.yml`.
 
-That pre-merge aggregate is not the final production desktop release gate.
+The `CI aggregate` is not the final production desktop release gate.
 Native Fedora/GPU proof, packaging and installer proof, candidate attestation,
 and final release assembly remain separate evidence and authority boundaries.
 Use issue dependencies and the current [SDLC profile](docs/SDLC.md), rather
