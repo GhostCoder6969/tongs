@@ -220,7 +220,24 @@ def test_every_path_a_lane_job_names_selects_its_lane(
     assert _offenders(paths, lane) == []
 
 
-_LOAD_PROBE = """
+# Shared by the probes: map a loaded module to its checkout path. tongs modules
+# map through the package root, so an installed wheel (the Fedora probe) reports
+# the same src/ paths as an editable checkout.
+_CHECKOUT_PATH = """
+def checkout_path(name, file):
+    path = pathlib.Path(file).resolve()
+    if name == "tongs" or name.startswith("tongs."):
+        package_root = pathlib.Path(sys.modules["tongs"].__file__).resolve().parent.parent
+        return "src/" + path.relative_to(package_root).as_posix()
+    if path.is_relative_to(root) and ".venv" not in path.relative_to(root).parts:
+        return path.relative_to(root).as_posix()
+    return None
+"""
+
+
+_LOAD_PROBE = (
+    _CHECKOUT_PATH
+    + """
 import importlib.util, json, pathlib, sys
 
 root = pathlib.Path(sys.argv[1])
@@ -233,19 +250,20 @@ for index, program in enumerate(json.loads(sys.argv[2])):
     sys.modules[specification.name] = module
     specification.loader.exec_module(module)
 files, named = set(), set()
-for module in list(sys.modules.values()):
+for name, module in list(sys.modules.items()):
     file = getattr(module, "__file__", None)
     if not file:
         continue
-    path = pathlib.Path(file).resolve()
-    if not path.is_relative_to(root) or ".venv" in path.relative_to(root).parts:
+    relative = checkout_path(name, file)
+    if relative is None:
         continue
-    files.add(path.relative_to(root).as_posix())
+    files.add(relative)
     for value in vars(module).values():
         if isinstance(value, str) and 0 < len(value) < 300 and "\\n" not in value:
             named.add(value)
 print(json.dumps({"files": sorted(files), "named": sorted(named)}))
 """
+)
 
 
 def _packaging_programs() -> list[str]:
@@ -287,7 +305,9 @@ def test_everything_the_packaging_programs_import_or_name_selects_packaging() ->
     assert _offenders(paths, "packaging") == []
 
 
-_COLLECT_PROBE = """
+_COLLECT_PROBE = (
+    _CHECKOUT_PATH
+    + """
 import contextlib, io, json, pathlib, sys
 import pytest
 
@@ -302,15 +322,13 @@ if status != 0:
     sys.stderr.write(output.getvalue())
     raise SystemExit(f"collection failed with {status}")
 files = set()
-for module in list(sys.modules.values()):
+for name, module in list(sys.modules.items()):
     file = getattr(module, "__file__", None)
-    if not file:
-        continue
-    path = pathlib.Path(file).resolve()
-    if path.is_relative_to(root) and ".venv" not in path.relative_to(root).parts:
-        files.add(path.relative_to(root).as_posix())
+    if file and (relative := checkout_path(name, file)) is not None:
+        files.add(relative)
 print(json.dumps(sorted(files)))
 """
+)
 
 
 def _pytest_targets(job: dict) -> list[str]:
@@ -393,12 +411,18 @@ def headless_run(self, *args, **kwargs):
 textual.app.App.run = headless_run
 entry_point = getattr(importlib.import_module(module_name), attribute)
 status = entry_point([])
+# Map files relative to the tongs package so an installed wheel (the Fedora
+# probe) reports the same src/ paths as an editable checkout.
+import tongs
+
+package_root = pathlib.Path(tongs.__file__).resolve().parent.parent
 files = set()
 for name, module in list(sys.modules.items()):
     file = getattr(module, "__file__", None)
     if not file or not (name == "tongs" or name.startswith("tongs.")):
         continue
-    files.add(pathlib.Path(file).resolve().relative_to(root).as_posix())
+    relative = pathlib.Path(file).resolve().relative_to(package_root).as_posix()
+    files.add(f"src/{relative}")
 print(json.dumps({
     "files": sorted(files),
     "modules": sorted(sys.modules),
