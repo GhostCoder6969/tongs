@@ -67,18 +67,19 @@ DESKTOP_JOBS = frozenset(
 
 def _tracked_files() -> frozenset[str]:
     # The Fedora probe copies the source without .git, so this cannot run at
-    # import time; tests that need the tracked set skip without a work tree.
-    completed = subprocess.run(
+    # import time. Only a missing .git skips; any other git failure is an error.
+    if not (ROOT / ".git").exists():
+        return frozenset()
+    output = subprocess.run(
         ["git", "ls-files", "-z"],
         capture_output=True,
         cwd=ROOT,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return frozenset()
-    return frozenset(
-        path for path in completed.stdout.decode("utf-8").split("\0") if path
-    )
+        check=True,
+    ).stdout.decode("utf-8")
+    tracked = frozenset(path for path in output.split("\0") if path)
+    if not tracked:
+        raise AssertionError("git ls-files returned nothing inside a work tree")
+    return tracked
 
 
 class _Tracked:

@@ -29,8 +29,6 @@ LINTER_BIN = f".github/linters/node_modules/.bin/{LINTER}"
 LINT_STEP = "Lint Markdown"
 MKDOCS_BUILD = 'mkdocs build --strict --site-dir "$RUNNER_TEMP/site"'
 LINT_GLOBS = ("docs/**/*.md", "*.md")
-#: Markdown that mkdocs.yml leaves out of the site but the linter still covers.
-SITE_EXCLUDED = ("docs/SDLC.md", "docs/site-plan.md")
 REGISTRY = "https://registry.npmjs.org/"
 
 
@@ -82,12 +80,10 @@ def test_the_lint_globs_cover_docs_and_root_markdown(
     for pattern in globs:
         covered.update(ROOT.glob(pattern))
     expected = set((ROOT / "docs").rglob("*.md")) | set(ROOT.glob("*.md"))
+    # Everything under docs/ is linted, including files mkdocs.yml leaves out
+    # of the site. Checked by walking the tree, not by naming files, so docs
+    # edits never need the core lane to keep this test honest.
     assert covered == expected
-    for path in SITE_EXCLUDED:
-        assert ROOT / path in covered
-    work = set((ROOT / "docs/work").rglob("*.md"))
-    assert work
-    assert work <= covered
 
 
 def test_the_install_is_a_lockfile_npm_ci_under_the_linters_directory(
