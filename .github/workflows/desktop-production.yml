@@ -1,12 +1,15 @@
 name: Desktop production evidence
 
-# Reusable production stages for the desktop pre-merge gate.
+# Reusable production stages for the CI aggregate.
 #
-# Ordinary CI calls this workflow so the archive, installed core, SBOM and RPM
-# lifecycle checks are mandatory instead of separately path filtered.  Every job
-# checks out one exact revision, verifies HEAD and its tree, and publishes one
-# issue #110 receipt whose identity the caller-owned aggregate validates
-# independently.
+# Ordinary CI calls this workflow whenever its lane plan (tests/ci/ci_plan.py)
+# selects the desktop lane, and sets run_packaging when the plan also selects
+# the packaging lane.  With run_packaging false, exactly the archive,
+# archive-evidence, archive-sbom and rpm-lifecycle jobs skip; the aggregate
+# accepts that skip only when its own effective plan deselected packaging.
+# Every job checks out one exact revision, verifies HEAD and its tree, and
+# publishes one issue #110 receipt whose identity the caller-owned aggregate
+# validates independently.
 #
 # For a pull request that revision is GitHub's synthetic merge commit, because
 # pre-merge combination testing is what gates integration.  The pull request
@@ -24,6 +27,11 @@ on:
         description: Exact revision every job must check out and bind
         required: true
         type: string
+      run_packaging:
+        description: Run the archive, SBOM and RPM lifecycle packaging jobs
+        required: false
+        default: true
+        type: boolean
     outputs:
       job-results:
         description: Result of every production job, for the caller aggregate
@@ -37,6 +45,11 @@ on:
         description: Exact revision every job must check out and bind
         required: true
         type: string
+      run_packaging:
+        description: Run the archive, SBOM and RPM lifecycle packaging jobs
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -298,6 +311,7 @@ jobs:
 
   archive:
     name: Reproducible archive and unsigned transfer
+    if: ${{ inputs.run_packaging }}
     needs: [source-identity]
     runs-on: ubuntu-24.04
     timeout-minutes: 75
@@ -405,6 +419,7 @@ jobs:
 
   archive-evidence:
     name: Archive lifecycle receipt
+    if: ${{ inputs.run_packaging }}
     needs: [source-identity, archive]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -618,6 +633,7 @@ jobs:
 
   archive-sbom:
     name: Archive SBOM receipt
+    if: ${{ inputs.run_packaging }}
     needs: [source-identity, archive, archive-evidence]
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -688,6 +704,7 @@ jobs:
 
   rpm-lifecycle:
     name: Fresh archive to RPM payload contract and full lifecycle
+    if: ${{ inputs.run_packaging }}
     needs: [source-identity, archive, archive-evidence]
     runs-on: ubuntu-24.04
     timeout-minutes: 120

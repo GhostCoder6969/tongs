@@ -336,7 +336,8 @@ def test_compatibility_interval_admits_core_1_0_0_and_the_pre_tag_branch_core() 
 
     ``package_contract.bind_manifest`` binds the payload contract to the core
     the RPM is built from, and ``desktop-production.yml`` runs that binding on
-    every push, against whatever ``git describe`` derives at that commit.  So
+    every run whose lane plan selects packaging, which includes every push to
+    ``main``, against whatever ``git describe`` derives at that commit.  So
     the interval has to hold two different things at two different times: the
     tagged ``1.0.0``, and the ``0.4.2.devN`` this branch derives until the tag
     exists.  Pinning both here is what stops the lower bound being raised early

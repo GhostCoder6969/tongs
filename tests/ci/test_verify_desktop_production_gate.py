@@ -4,13 +4,16 @@ The fixtures here are synthetic on purpose.  A passing case proves only that
 the consumer accepts a well-formed complete set; the negative cases carry the
 value, because each one reproduces a way a real workflow could otherwise report
 a false green: a failed job, a skipped job, a cancelled job, a missing result,
-a stale receipt from another run, and an injected receipt or report.
+a stale receipt from another run, and an injected receipt or report.  The
+plan-aware cases prove that a skip passes only for a lane the effective plan
+deselected, including the partial desktop selection without packaging.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -19,6 +22,7 @@ import pytest
 
 from tests.ci.verify_desktop_production_gate import (
     ARTIFACT_LIFECYCLE,
+    CI_PLAN,
     GPU_GATE_CHECK_ID,
     NODE_TAP,
     PYTEST_JUNIT,
@@ -27,9 +31,12 @@ from tests.ci.verify_desktop_production_gate import (
     REQUIRED_PRODUCTION_JOBS,
     GateIdentity,
     GateVerificationError,
+    load_plan,
+    main,
     verify_check_set,
     verify_job_results,
     verify_production_gate,
+    verify_production_results,
 )
 
 COMMIT = "1" * 40
@@ -42,6 +49,23 @@ RUN_ID = "34274245440"
 ATTEMPT = 1
 ENVIRONMENT = "github-hosted-ubuntu-24.04"
 PROVENANCE = "hosted"
+
+FULL = CI_PLAN.full_plan(COMMIT, "event 'push' is not pull_request")
+
+
+def _plan(*lanes: str) -> Any:
+    return CI_PLAN.Plan(
+        version=CI_PLAN.PLAN_VERSION,
+        full=False,
+        lanes=frozenset(lanes),
+        reasons=(),
+        checked_out=COMMIT,
+    )
+
+
+DOCS_ONLY = _plan("docs")
+TUI_ONLY = _plan("lint", "core")
+DESKTOP_WITHOUT_PACKAGING = _plan("lint", "core", "desktop_fixtures", "desktop")
 
 IDENTITY = GateIdentity(
     commit=COMMIT,
@@ -252,6 +276,7 @@ def test_gate_accepts_a_complete_successful_run(evidence: Path) -> None:
         production_results=_production_results(),
         evidence_root=evidence,
         identity=IDENTITY,
+        plan=FULL,
     )
     assert set(verified) == {check.check_id for check in REQUIRED_CHECKS}
 
@@ -264,6 +289,7 @@ def test_gate_rejects_every_non_success_ci_result(evidence: Path, result: Any) -
             production_results=_production_results(),
             evidence_root=evidence,
             identity=IDENTITY,
+            plan=FULL,
         )
 
 
@@ -278,6 +304,7 @@ def test_gate_rejects_every_non_success_production_result(
             production_results=_production_results(**{job: {"result": result}}),
             evidence_root=evidence,
             identity=IDENTITY,
+            plan=FULL,
         )
 
 
@@ -290,6 +317,7 @@ def test_gate_rejects_a_missing_production_job_result(evidence: Path) -> None:
             production_results=json.dumps(payload),
             evidence_root=evidence,
             identity=IDENTITY,
+            plan=FULL,
         )
 
 
@@ -302,6 +330,7 @@ def test_gate_rejects_an_injected_production_job_result(evidence: Path) -> None:
             ),
             evidence_root=evidence,
             identity=IDENTITY,
+            plan=FULL,
         )
 
 
@@ -313,6 +342,7 @@ def test_gate_rejects_malformed_result_payloads(evidence: Path, raw: str) -> Non
             production_results=_production_results(),
             evidence_root=evidence,
             identity=IDENTITY,
+            plan=FULL,
         )
 
 
@@ -323,6 +353,7 @@ def test_gate_rejects_a_malformed_job_entry(evidence: Path) -> None:
             production_results=_production_results(),
             evidence_root=evidence,
             identity=IDENTITY,
+            plan=FULL,
         )
 
 
@@ -913,3 +944,283 @@ def test_every_classname_prefix_matches_what_pytest_actually_emits() -> None:
                     f"{check.check_id} prefix {prefix!r} has no trailing "
                     f"separator, so {relative}.py must be the emitting module"
                 )
+
+
+def _plan_ci_results(plan: Any, **overrides: Any) -> str:
+    payload: dict[str, Any] = {"changes": {"result": "success", "outputs": {}}}
+    for lane, job in CI_PLAN.LANE_CI_JOBS.items():
+        result = "success" if lane in plan.lanes else "skipped"
+        payload[job] = {"result": result, "outputs": {}}
+    payload.update(overrides)
+    return json.dumps(payload)
+
+
+def _plan_production_results(plan: Any, **overrides: Any) -> str:
+    if "desktop" not in plan.lanes:
+        return ""
+    payload = {}
+    for lane, jobs in CI_PLAN.LANE_PRODUCTION_JOBS.items():
+        result = "success" if lane in plan.lanes else "skipped"
+        for job in jobs:
+            payload[job] = {"result": result, "outputs": {}}
+    payload.update(overrides)
+    return json.dumps(payload)
+
+
+def _keep_only(evidence: Path, plan: Any) -> Path:
+    selected = CI_PLAN.selected_checks(plan)
+    for check in REQUIRED_CHECKS:
+        if check.check_id not in selected:
+            shutil.rmtree(evidence / check.evidence_directory)
+    return evidence
+
+
+def _gate(evidence: Path, plan: Any, **kwargs: Any) -> dict[str, str]:
+    arguments = {
+        "ci_results": _plan_ci_results(plan),
+        "production_results": _plan_production_results(plan),
+        "evidence_root": evidence,
+        "identity": IDENTITY,
+        "plan": plan,
+    }
+    arguments.update(kwargs)
+    return verify_production_gate(**arguments)
+
+
+def test_the_lane_constants_cover_the_configured_jobs_and_checks() -> None:
+    assert REQUIRED_CI_JOBS == frozenset(CI_PLAN.LANE_CI_JOBS.values()) | {"changes"}
+    assert REQUIRED_PRODUCTION_JOBS == (
+        CI_PLAN.LANE_PRODUCTION_JOBS["desktop"]
+        | CI_PLAN.LANE_PRODUCTION_JOBS["packaging"]
+    )
+    assert CI_PLAN.selected_checks(FULL) == {c.check_id for c in REQUIRED_CHECKS}
+
+
+@pytest.mark.parametrize(
+    ("plan", "expected"),
+    [
+        (DOCS_ONLY, set()),
+        (TUI_ONLY, {"core-python-3.12", "core-python-3.13"}),
+        (
+            DESKTOP_WITHOUT_PACKAGING,
+            {
+                "core-python-3.12",
+                "core-python-3.13",
+                "desktop-production-tap",
+                "desktop-installed-core",
+                "desktop-native-payload-fixture",
+            },
+        ),
+    ],
+    ids=["docs", "tui", "desktop-without-packaging"],
+)
+def test_the_gate_accepts_exactly_the_checks_a_reduced_plan_selects(
+    evidence: Path, plan: Any, expected: set[str]
+) -> None:
+    verified = _gate(_keep_only(evidence, plan), plan)
+    assert set(verified) == expected
+
+
+def test_an_empty_evidence_root_is_valid_only_when_no_check_is_selected(
+    tmp_path: Path,
+) -> None:
+    empty = tmp_path / "gate-evidence"
+    empty.mkdir()
+    assert _gate(empty, DOCS_ONLY) == {}
+    with pytest.raises(GateVerificationError, match="missing="):
+        _gate(empty, TUI_ONLY)
+    with pytest.raises(GateVerificationError, match="missing="):
+        _gate(empty, FULL)
+
+
+def test_an_absent_evidence_root_is_rejected_even_when_nothing_is_selected(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(GateVerificationError, match="real directory"):
+        _gate(tmp_path / "absent", DOCS_ONLY)
+
+
+@pytest.mark.parametrize("plan", [DOCS_ONLY, TUI_ONLY], ids=["docs", "tui"])
+def test_evidence_for_a_deselected_lane_is_rejected_as_injected(
+    evidence: Path, plan: Any
+) -> None:
+    """Receipts the plan did not ask for mean the wiring drifted."""
+
+    with pytest.raises(GateVerificationError, match="injected="):
+        _gate(evidence, plan)
+
+
+def test_packaging_evidence_is_rejected_when_packaging_was_deselected(
+    evidence: Path,
+) -> None:
+    _keep_only(evidence, FULL)
+    with pytest.raises(GateVerificationError, match="injected=.*desktop-rpm"):
+        _gate(evidence, DESKTOP_WITHOUT_PACKAGING)
+
+
+def test_desktop_without_packaging_requires_the_packaging_jobs_to_skip(
+    evidence: Path,
+) -> None:
+    _keep_only(evidence, DESKTOP_WITHOUT_PACKAGING)
+    for job in sorted(CI_PLAN.LANE_PRODUCTION_JOBS["packaging"]):
+        with pytest.raises(GateVerificationError, match=job):
+            _gate(
+                evidence,
+                DESKTOP_WITHOUT_PACKAGING,
+                production_results=_plan_production_results(
+                    DESKTOP_WITHOUT_PACKAGING, **{job: {"result": "success"}}
+                ),
+            )
+
+
+@pytest.mark.parametrize("result", ["skipped", "failure", "cancelled"])
+def test_desktop_without_packaging_still_requires_every_desktop_job(
+    evidence: Path, result: str
+) -> None:
+    _keep_only(evidence, DESKTOP_WITHOUT_PACKAGING)
+    for job in sorted(CI_PLAN.LANE_PRODUCTION_JOBS["desktop"]):
+        with pytest.raises(GateVerificationError, match=job):
+            _gate(
+                evidence,
+                DESKTOP_WITHOUT_PACKAGING,
+                production_results=_plan_production_results(
+                    DESKTOP_WITHOUT_PACKAGING, **{job: {"result": result}}
+                ),
+            )
+
+
+@pytest.mark.parametrize("raw", ["{}", "null", '{"archive": {"result": "skipped"}}'])
+def test_production_results_must_be_empty_when_desktop_is_deselected(
+    evidence: Path, raw: str
+) -> None:
+    _keep_only(evidence, TUI_ONLY)
+    with pytest.raises(GateVerificationError, match="must be empty"):
+        _gate(evidence, TUI_ONLY, production_results=raw)
+    verify_production_results("", TUI_ONLY)
+    verify_production_results("  \n", TUI_ONLY)
+
+
+def test_production_results_must_be_present_when_desktop_is_selected(
+    evidence: Path,
+) -> None:
+    with pytest.raises(GateVerificationError, match="absent"):
+        _gate(evidence, FULL, production_results="")
+
+
+@pytest.mark.parametrize("result", ["success", "failure", "cancelled"])
+def test_a_deselected_ci_lane_must_report_exactly_skipped(
+    evidence: Path, result: str
+) -> None:
+    _keep_only(evidence, TUI_ONLY)
+    with pytest.raises(GateVerificationError, match="desktop-production"):
+        _gate(
+            evidence,
+            TUI_ONLY,
+            ci_results=_plan_ci_results(
+                TUI_ONLY, **{"desktop-production": {"result": result}}
+            ),
+        )
+
+
+def test_a_selected_ci_lane_may_not_skip(evidence: Path) -> None:
+    _keep_only(evidence, TUI_ONLY)
+    with pytest.raises(GateVerificationError, match="core='skipped'"):
+        _gate(
+            evidence,
+            TUI_ONLY,
+            ci_results=_plan_ci_results(TUI_ONLY, core={"result": "skipped"}),
+        )
+
+
+def test_changes_must_succeed_unless_the_plan_is_full(evidence: Path) -> None:
+    _keep_only(evidence, TUI_ONLY)
+    with pytest.raises(GateVerificationError, match="changes"):
+        _gate(
+            evidence,
+            TUI_ONLY,
+            ci_results=_plan_ci_results(TUI_ONLY, changes={"result": "failure"}),
+        )
+
+
+def test_a_full_plan_accepts_a_failed_changes_job_when_every_lane_passed(
+    tmp_path: Path,
+) -> None:
+    evidence = _build_evidence(tmp_path / "gate-evidence")
+    verified = _gate(
+        evidence,
+        FULL,
+        ci_results=_plan_ci_results(FULL, changes={"result": "failure"}),
+    )
+    assert set(verified) == {check.check_id for check in REQUIRED_CHECKS}
+
+
+def test_the_gate_rejects_an_invalid_plan(evidence: Path) -> None:
+    unclosed = _plan("packaging")
+    with pytest.raises(GateVerificationError, match="effective plan is invalid"):
+        _gate(evidence, unclosed, ci_results=_plan_ci_results(FULL))
+
+
+def test_load_plan_is_strict(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    with pytest.raises(GateVerificationError, match="unreadable"):
+        load_plan(path)
+    path.write_text("[]")
+    with pytest.raises(GateVerificationError, match="malformed"):
+        load_plan(path)
+    path.write_text(DESKTOP_WITHOUT_PACKAGING.to_json())
+    assert load_plan(path) == DESKTOP_WITHOUT_PACKAGING
+
+
+def _cli_arguments(evidence: Path, plan_path: Path) -> list[str]:
+    return [
+        "--evidence-root",
+        str(evidence),
+        "--plan",
+        str(plan_path),
+        "--commit",
+        COMMIT,
+        "--tree",
+        TREE,
+        "--repository",
+        REPOSITORY,
+        "--run-id",
+        RUN_ID,
+        "--attempt",
+        str(ATTEMPT),
+        "--environment",
+        ENVIRONMENT,
+        "--provenance",
+        PROVENANCE,
+        "--event",
+        EVENT,
+        "--pull-request-head",
+        PULL_REQUEST_HEAD,
+        "--pull-request-base",
+        PULL_REQUEST_BASE,
+    ]
+
+
+def test_the_cli_requires_a_plan(evidence: Path, tmp_path: Path) -> None:
+    arguments = _cli_arguments(evidence, tmp_path / "plan.json")
+    index = arguments.index("--plan")
+    with pytest.raises(SystemExit):
+        main(arguments[:index] + arguments[index + 2 :])
+
+
+def test_the_cli_verifies_against_the_plan_file(
+    evidence: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(TUI_ONLY.to_json())
+    _keep_only(evidence, TUI_ONLY)
+    monkeypatch.setenv("DESKTOP_GATE_RESULTS", _plan_ci_results(TUI_ONLY))
+    monkeypatch.setenv("DESKTOP_PRODUCTION_RESULTS", "")
+    assert main(_cli_arguments(evidence, plan_path)) == 0
+    assert "verified the 2 checks" in capsys.readouterr().out
+
+    plan_path.write_text(FULL.to_json())
+    assert main(_cli_arguments(evidence, plan_path)) == 1
+    assert "gate failed" in capsys.readouterr().err

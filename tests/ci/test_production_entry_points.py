@@ -100,14 +100,19 @@ class EntryPoint:
 
 ENTRY_POINTS: tuple[EntryPoint, ...] = (
     EntryPoint(
+        program="tests/ci/ci_plan.py",
+        jobs=("ci.yml:changes", "ci.yml:desktop-pr-gate"),
+        note="the changes job installs nothing and runs the runner's python3",
+    ),
+    EntryPoint(
         program="tests/ci/verify_desktop_ci.py",
         jobs=("ci.yml:core", "ci.yml:desktop-pr-gate"),
-        note="the aggregate job installs nothing, so this must stay stdlib only",
+        note="the aggregate job installs nothing and loads ci_plan.py by path",
     ),
     EntryPoint(
         program="tests/ci/verify_desktop_production_gate.py",
         jobs=("ci.yml:desktop-pr-gate",),
-        note="loads the issue #110 reader and #115 parsers by path, both stdlib",
+        note="loads the #110 reader, #115 parsers and ci_plan.py by path, all stdlib",
     ),
     EntryPoint(
         program="tests/ci/desktop_stage_receipt.py",
