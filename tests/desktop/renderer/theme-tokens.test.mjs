@@ -115,6 +115,7 @@ const THEMED_SURFACE_SELECTORS = [
   ".inline-composer-preview",
   ".pending-card",
   ".pending-card-ribbon",
+  ".diff-hunk",
   ".diff-thread",
   ".review-workflow-thread",
   ".review-drawer",

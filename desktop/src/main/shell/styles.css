@@ -993,8 +993,8 @@ button {
 }
 .diff-hunk {
   padding: 6px 12px;
-  color: #9fc9ff;
-  background: #172c42;
+  color: var(--accent);
+  background: var(--panel-2);
   white-space: pre;
 }
 .diff-line {
