@@ -160,7 +160,8 @@ class InboxScreen(Screen):
         try:
             if not self.scoped_repo and not self.app.repos:
                 table.clear()
-                self.notify("[dim]No forges discovered yet[/]")
+                if self.app.repository_generation > 0:
+                    self.notify("[dim]No forges discovered yet[/]")
                 return
             await self._load_page(table, ReviewScope.MY_REVIEWS, "Reviews")
         finally:

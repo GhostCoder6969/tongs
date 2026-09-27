@@ -441,6 +441,36 @@ async def test_partial_inbox_result_is_visible_and_refresh_retries(
 
 
 @pytest.mark.asyncio
+async def test_empty_forge_notice_waits_for_discovery(tmp_path: Path) -> None:
+    registry = MockForgeRegistry({})
+    discovery_started = threading.Event()
+    release_discovery = threading.Event()
+
+    def discoverer(*args, **kwargs):
+        discovery_started.set()
+        assert release_discovery.wait(timeout=3)
+        return []
+
+    app, _session, _cache = make_app(tmp_path, [], registry, discoverer=discoverer)
+
+    async with app.run_test(notifications=True):
+        assert await asyncio.to_thread(discovery_started.wait, 2)
+        await asyncio.sleep(0)
+        assert not any(
+            "No forges discovered yet" in notification.message
+            for notification in app._notifications
+        )
+
+        release_discovery.set()
+        await settle(app)
+        assert app.repository_generation == 1
+        assert any(
+            "No forges discovered yet" in notification.message
+            for notification in app._notifications
+        )
+
+
+@pytest.mark.asyncio
 async def test_late_cancelled_discovery_cannot_replace_refresh(
     tmp_path: Path,
 ) -> None:
