@@ -75,9 +75,9 @@ import { SidecarTransport } from "../../../desktop/dist/src/main/sidecar.js";
  *   by #181: "Merge" / "Close" / "Reopen" / "Remove approval" ->
  *   "Confirm {label}"; a rejected action reports through
  *   `role="alert"` inside `.review-workflow-shell` with the message from
- *   `desktop/src/shared/review.ts` `REVIEW_MUTATION_MESSAGES.conflict`,
- *   unchanged: "The review changed remotely. Refresh it before choosing
- *   another action."
+ *   `desktop/src/shared/review.ts` `REVIEW_MUTATION_MESSAGES.conflict`, with
+ *   the message "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge
+ *   conflicts."
  * - Uncertainty acknowledgment (`review-detail/index.tsx` and
  *   `features/review/index.tsx`, unchanged): button "I inspected the forge;
  *   acknowledge uncertainty".
@@ -507,7 +507,7 @@ async function runProof() {
     await clickButton("Confirm Close");
     const conflict = await evaluate(`
       await waitFor("known conflict", () =>
-        document.body.innerText.includes("review changed remotely"));
+        document.body.innerText.includes("review changed remotely or its branch conflicts"));
       return snapshot();
     `);
     const conflictScreenshot = await capture("09-known-conflict.png");
@@ -527,7 +527,7 @@ async function runProof() {
             alerts.map((item) => item.textContent).join(" | "),
         );
       const alert = alerts[0];
-      if (!alert.textContent.includes("The review changed remotely."))
+      if (!alert.textContent.includes("review changed remotely or its branch conflicts"))
         throw new Error("known conflict alert is not actionable");
       const style = getComputedStyle(alert);
       const channels = (value) => value.match(/[\\d.]+/g).slice(0, 3).map(Number);

@@ -128,7 +128,7 @@ test("review operation inventory is fixed, unique, and classifies all 22 RPC met
 test("review mutation errors use fixed actionable copy without forwarding service text", () => {
   assert.equal(
     reviewMutationMessage("conflict"),
-    "The review changed remotely. Refresh it before choosing another action.",
+    "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge conflicts.",
   );
   assert.match(reviewMutationMessage("revision_changed"), /Reload the latest revision/);
   assert.match(reviewMutationMessage("authentication_failed"), /Sign in/);

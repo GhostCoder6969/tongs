@@ -1284,7 +1284,7 @@ test("a refused discard reports its own reason and a successful one clears the s
   );
   await waitFor(() =>
     assert.deepEqual(notices(), [
-      "The review changed remotely. Refresh it before choosing another action.",
+      "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge conflicts.",
     ]),
   );
   assert.equal(view.container.querySelectorAll(".pending-card").length, 1);

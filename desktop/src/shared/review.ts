@@ -40,7 +40,7 @@ const REVIEW_MUTATION_MESSAGES: Readonly<Record<string, string>> = Object.freeze
   closed: "This review session is closed. Reopen it before continuing.",
   configuration_invalid:
     "Review actions are unavailable because the local service configuration is invalid.",
-  conflict: "The review changed remotely. Refresh it before choosing another action.",
+  conflict: "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge conflicts.",
   invalid_input: "Check the review action input and the current remote state.",
   invalid_response: "The review action result could not be confirmed.",
   mutation_timeout: "The review action result could not be confirmed.",

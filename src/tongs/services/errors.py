@@ -95,7 +95,7 @@ def translate_error(
     if isinstance(error, ConflictError):
         return ServiceError(
             ServiceErrorCode.CONFLICT,
-            "The forge resource changed or conflicts with this request.",
+            "The forge resource changed remotely or conflicts with this request. Refresh it and check for conflicts.",
             retryable=True,
             details=details,
         )
