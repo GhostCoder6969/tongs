@@ -87,6 +87,9 @@ async def test_slash_searches_the_job_log_and_reports_match_count(
             await pilot.press(key)
         await _settle(app)
         assert search.value == "error"
+        status = panel.query_one("#log-search-status", Static)
+        assert search.region.height > 0
+        assert search.region.bottom <= status.region.y
         assert panel._search_matches == MATCH_LINES
         assert f"1/{len(MATCH_LINES)}" in _status_text(panel)
         assert log_widget.scroll_offset.y == MATCH_LINES[0]

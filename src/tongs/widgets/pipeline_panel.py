@@ -179,7 +179,6 @@ class PipelinePanel(Widget, can_focus=True):
         height: 1fr;
     }
     PipelinePanel #log-search-input {
-        dock: bottom;
         display: none;
         height: 1;
     }
