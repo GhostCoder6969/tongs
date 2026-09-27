@@ -1056,7 +1056,7 @@ def _require_tool_identity(
             ROOT / RECEIPT_READER_PROGRAM, MAX_JSON_BYTES, "receipt reader"
         )
     )
-    contract = _directory_digest(ROOT / ARTIFACT_CONTRACT_PACKAGE)
+    contract = expected_tool_digests(ROOT)["artifact_contract_sha256"]
     if (
         adapter != expectations.adapter_program_sha256
         or validator != expectations.transfer_validator_program_sha256
@@ -1073,6 +1073,15 @@ def _require_tool_identity(
         "receipt_reader_program_sha256": reader,
         "artifact_contract_package": ARTIFACT_CONTRACT_PACKAGE,
         "artifact_contract_sha256": contract,
+    }
+
+
+def expected_tool_digests(source_root: Path) -> dict[str, str]:
+    """Return the trusted tool digests expected for source_root."""
+    return {
+        "artifact_contract_sha256": _directory_digest(
+            source_root / ARTIFACT_CONTRACT_PACKAGE
+        )
     }
 
 
