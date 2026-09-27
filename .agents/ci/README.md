@@ -73,11 +73,21 @@ Cargo, or network operation:
 .venv/bin/pytest tests/packaging/rpm/python-dependencies -v
 ```
 
-Documentation changes build the site strictly:
+Documentation changes build the Astro + Starlight site in `site/`, which reads
+the Markdown in `docs/` through a committed symlink. `starlight-links-validator`
+makes the build strict: a broken page link or anchor fails it. Run both commands
+under the [bounded local Node procedure](../testing/README.md#bounded-local-node-procedure);
+the build needs about 0.5 GiB:
 
 ```bash
-mkdocs build --strict
+npm ci --prefix site
+npm run build --prefix site
 ```
+
+The output lands in `site/dist`, including `CNAME`. `docs/SDLC.md`,
+`docs/site-plan.md` and `docs/work/` are left out by the content collection glob
+in `site/src/content.config.ts`, so they are never built, indexed or listed in
+the sitemap, and nothing published may link into them.
 
 ## Hosted workflows
 
@@ -92,7 +102,7 @@ table below is generated from it:
 <!-- ci-lanes:begin -->
 | Rule | Paths | Lanes |
 | --- | --- | --- |
-| docs | `docs/**`, `mkdocs.yml`, `.agents/**`, `*.md`, `.github/ISSUE_TEMPLATE/**`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/**`, `.github/FUNDING.yml`, `.github/linters/**` | docs |
+| docs | `docs/**`, `site/**`, `.agents/**`, `*.md`, `.github/ISSUE_TEMPLATE/**`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/**`, `.github/FUNDING.yml`, `.github/linters/**` | docs |
 | readme | `README.md` | docs, core |
 | core-read-docs | `.agents/ci/README.md`, `.agents/testing/README.md`, `.github/linters/**` | docs, core |
 | tui | `src/tongs/views/**`, `src/tongs/widgets/**`, `src/tongs/mcp/**`, `src/tongs/app.py`, `src/tongs/commands.py`, `src/tongs/helpers.py`, `src/tongs/__main__.py` | lint, core |
@@ -162,10 +172,14 @@ prove the same source rebuild, companion closure, lifecycle and byte-identical
 rebuild against the receipt-bound fresh archive on every pull request that
 selects the `packaging` lane.
 
-`docs.yml` deploys the site to GitHub Pages on a push to `main` or a manual
-`workflow_dispatch`. On pull requests the `docs` lane of `ci.yml` builds the
-site strictly and lints the Markdown, so a documentation-only change runs that
-lane alone.
+`docs.yml` runs that build on Node 22 and deploys `site/dist` to GitHub Pages,
+but only on a push to `main` or a manual `workflow_dispatch`. It also checks
+that `site/dist/CNAME` names `www.tongs.tools` and that no repository-only
+record reached the output. On pull requests the `docs` lane of `ci.yml` runs
+the identical build and checks, without the upload, then lints the Markdown,
+so a documentation-only change runs that lane alone.
+`tests/ci/test_production_workflow_contract.py` keeps the lane's commands and
+Node setup identical to the deploy's.
 
 ## Releases
 
@@ -185,15 +199,23 @@ build, signing, verification and RPM rebuild on a branch and publishes nothing.
 It is the rehearsal to run before pushing a tag. `tests/ci/test_release_publication_workflow.py`
 pins the trigger, permission and step-order contract.
 
+`docs/releases/<tag>.md` is both a site page and the GitHub Release body.
+`release-desktop.yml` drops its leading Starlight front matter block into
+`$RUNNER_TEMP` and passes that copy to `verify --notes` and
+`gh release create --notes-file`. Write the prose so it reads on GitHub too:
+absolute `https://www.tongs.tools/...` links, inline code such as
+`` `Ctrl+G` `` instead of `++key++` markup.
+
 ## Pinned actions and tools
 
 Every GitHub Action referenced from a workflow under `.github/workflows` is
 pinned to a full commit SHA with a trailing `# vX.Y.Z` comment, never a mutable
 tag; `tests/ci/test_production_workflow_contract.py` enforces this for every
 job- and step-level reference in every workflow, with no exceptions. The
-documentation toolchain (`mkdocs`, `mkdocs-material`) is pinned to an exact
-version in `pyproject.toml`'s `dev` extra, and a test asserts `docs.yml`'s
-install step matches it; other tools a workflow installs ad hoc, such as
+documentation toolchain is pinned by `site/package-lock.json`, which `npm ci`
+installs exactly, and every direct dependency in `site/package.json`, Astro and
+Starlight included, is an exact version rather than a range; a test in the same
+module enforces both. Other tools a workflow installs ad hoc, such as
 `build` and `ruff`, are not yet pinned and are tracked by #162. Updates to
 these pins will arrive as Dependabot pull requests once #162 (v1.1.0) lands;
 until then, bump them by hand.

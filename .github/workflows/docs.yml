@@ -1,14 +1,18 @@
 name: Deploy docs
 
+# Builds the Astro + Starlight site in site/ and deploys site/dist to GitHub
+# Pages.  Pull requests get the same build, without a deploy, from the docs
+# lane in ci.yml; tests/ci/test_production_workflow_contract.py keeps the two
+# builds' commands identical.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# Only the deploy job gets the Pages and OIDC scopes; the build job runs npm
+# install scripts, so it keeps read-only contents access.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -17,20 +21,43 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.12"
-      - run: pip install mkdocs-material==9.7.7 mkdocs==1.6.1
-      - run: mkdocs build --strict
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install the locked site dependencies
+        run: npm ci --prefix site
+      - name: Build the site with strict link validation
+        run: npm run build --prefix site
+      - name: Check the custom domain and the repository-only records
+        run: |
+          set -euo pipefail
+          grep -qx 'www.tongs.tools' site/dist/CNAME
+          for record in sdlc site-plan work; do
+            test ! -e "site/dist/$record"
+          done
+          if grep -qiE '/(sdlc|site-plan|work)/' site/dist/sitemap*.xml 2>/dev/null; then
+            echo "A repository-only record reached the sitemap" >&2
+            exit 1
+          fi
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: site
+          path: site/dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

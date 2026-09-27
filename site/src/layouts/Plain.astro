@@ -1,0 +1,85 @@
+---
+// Layout for the pages outside Starlight: the homepage and the 404 page.
+// Same header, footer, tokens, fonts and theme handling as the docs.
+import '../styles/tokens.css';
+import '../styles/home.css';
+import Fonts from '../components/Fonts.astro';
+import BrandMeta from '../components/BrandMeta.astro';
+import NavLinks from '../components/NavLinks.astro';
+import ThemeButton from '../components/ThemeButton.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { groups, href, site } from '../data/nav.mjs';
+
+interface Props {
+  title: string;
+  description: string;
+  bodyClass?: string;
+  noindex?: boolean;
+}
+const { title, description, bodyClass, noindex = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="tongs" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content={import.meta.env.TONGS_HAS_OG ? 'summary_large_image' : 'summary'} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <BrandMeta withFavicon />
+    <script is:inline>
+      /* Same key and values as Starlight's theme script: "" (auto), "dark", "light". */
+      (function () {
+        var t = '';
+        try { t = localStorage.getItem('starlight-theme') || ''; } catch (e) {}
+        if (t !== 'dark' && t !== 'light') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <Fonts />
+    <noscript><style>[data-search]:not(a), .theme-btn { display: none !important; }</style></noscript>
+  </head>
+  <body class={bodyClass}>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="/" aria-label={`tongs ${site.version}, home`}><span class="mark" aria-hidden="true"><img class="mark-dark" src="/logo-mark-2c-dark.svg" width="20" height="20" alt="" /><img class="mark-light" src="/logo-mark-2c-light.svg" width="20" height="20" alt="" /></span><span class="wordmark" translate="no">tongs</span><span class="ver">{site.version}</span></a>
+        <NavLinks />
+        <div class="tools">
+          <button class="search-btn" type="button" data-search aria-label="Search docs" aria-keyshortcuts="/ Control+K Meta+K"><span class="ic" aria-hidden="true">/</span><span class="grow">Search docs</span><kbd aria-hidden="true">/</kbd></button>
+          <a class="tool-link" href={site.repo}>GitHub</a>
+          <ThemeButton />
+          <details class="menu">
+            <summary class="icon-btn" aria-label="Menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+            </summary>
+            <nav class="menu-panel" aria-label="Menu">
+              {groups.filter((g) => g.nav).map((g) => <a href={href(g.items[0].slug)}><span class="lbl">{g.label}{g.badge && <span class="beta">{g.badge}</span>}</span><span class="dir">{g.dir}</span></a>)}
+              <hr />
+              <a href={site.repo}><span class="lbl">GitHub</span><span class="dir">andre-motta/tongs</span></a>
+            </nav>
+          </details>
+        </div>
+      </div>
+    </header>
+    <slot />
+    <SiteFooter />
+    <dialog class="search-dialog" id="search-dialog" aria-label="Search the docs">
+      <div class="dlg-head"><span>search the docs</span><button class="close" type="button" data-close aria-label="Close search (esc)">esc</button></div>
+      <div class="dlg-body"><div id="home-search"></div></div>
+    </dialog>
+    <script>
+      import { initHome } from '../scripts/home';
+      initHome();
+    </script>
+  </body>
+</html>

@@ -8,16 +8,21 @@
     "MD013": false,
     // Tables are aligned by hand, not to a single column style.
     "MD060": false,
-    // mkdocs-material admonitions and content tabs indent their bodies, which
-    // this rule misreads as indented code blocks.
+    // Nested list content and code under list items is indented, which this
+    // rule misreads as indented code blocks.
     "MD046": false,
-    // The README and the site home page open with an HTML hero or a
-    // second-level release heading instead of a top-level heading.
+    // The README opens with an HTML hero, and site pages take their title
+    // from front matter instead of a top-level heading.
     "MD041": false,
     // Repeated subsection names are fine under different parents.
     "MD024": { "siblings_only": true },
-    // HTML used for the README badges and the mkdocs-material hero.
-    "MD033": { "allowed_elements": ["a", "br", "div", "img", "p", "strong"] },
+    // HTML used for the README badges and the framed captures in site pages.
+    "MD033": {
+      "allowed_elements": [
+        "a", "b", "br", "div", "figcaption", "figure", "img", "p", "picture",
+        "source", "span", "strong"
+      ]
+    },
     // Headings such as the site tagline may end with a full stop.
     "MD026": { "punctuation": ",;:!" },
     // A list interrupted by a code block may continue its numbering.

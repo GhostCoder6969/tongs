@@ -47,7 +47,7 @@ CORE_MODULES = frozenset(
     }
 )
 #: Top-level modules only the ``dev`` extra provides.
-DEV_MODULES = frozenset({"jsonschema", "mkdocs", "pytest", "yaml"})
+DEV_MODULES = frozenset({"jsonschema", "pytest", "yaml"})
 #: Top-level modules only the ``mcp`` extra provides.
 MCP_MODULES = frozenset({"mcp"})
 OPTIONAL_MODULES = CORE_MODULES | DEV_MODULES | MCP_MODULES
@@ -367,7 +367,6 @@ def test_the_install_table_matches_the_declared_extras() -> None:
         ("jsonschema", "jsonschema>="),
         ("yaml", "pyyaml>="),
         ("pytest", "pytest>="),
-        ("mkdocs", "mkdocs=="),
     ):
         assert module in DEV_MODULES
         assert marker in pyproject, marker

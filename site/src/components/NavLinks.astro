@@ -1,0 +1,18 @@
+---
+import { headerLinks } from '../data/nav.mjs';
+interface Props {
+  current?: string;
+}
+const { current } = Astro.props;
+---
+
+<nav class="nav" aria-label="Sections">
+  {
+    headerLinks.map((l) => (
+      <a href={l.href} aria-current={l.group === current ? 'true' : undefined}>
+        {l.label}
+        {l.badge && <span class="beta">{l.badge}</span>}
+      </a>
+    ))
+  }
+</nav>

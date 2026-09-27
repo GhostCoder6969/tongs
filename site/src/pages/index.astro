@@ -1,0 +1,321 @@
+---
+// Homepage. Order follows the trailer: heat, clamp, one place, review, drafts,
+// CI, keys, beyond, find your way, resolve.
+import Plain from '../layouts/Plain.astro';
+import { groups, href, site } from '../data/nav.mjs';
+import { draftSteps, keymap } from '../data/home.mjs';
+import { keysToHtml } from '../plugins/keys.mjs';
+
+const nav = groups.filter((g) => g.nav);
+const k = (spec: string) => keysToHtml(spec);
+const docs = {
+  start: href('getting-started'),
+  firstRun: href('start/first-run'),
+  drafts: href('guides/review-drafts'),
+  keys: href('reference/keybindings'),
+  desktop: href('desktop/installation'),
+  mcp: href('extend/mcp'),
+};
+---
+
+<Plain
+  title="tongs: every forge, one place"
+  description="A keyboard-driven review inbox for GitHub pull requests and GitLab merge requests. Diffs, comments, review drafts and pipelines in one terminal."
+  bodyClass="home"
+>
+  <main id="main">
+    <!-- ================= hero: the clamp moment ================= -->
+    <section class="hero" aria-labelledby="hero-title">
+      {/* PLACEHOLDER brand kit: hero-loop.webm / hero-loop.mp4 (8 to 12 s, silent, seamless) with poster
+           hero-banner-plain-1920x1080.webp replaces .light. preload="none"; plays only without reduced motion. */}
+      <div class="wrap hero-top">
+        <div class="hero-id">
+          <p class="eyebrow"><span>{site.version}</span><span class="dim">/</span><span>terminal, desktop beta, mcp</span></p>
+          <h1 id="hero-title"><span class="wm" translate="no">tongs</span><span class="tagline">Every forge. One place.</span></h1>
+          <p class="lead">A keyboard-driven review inbox for GitHub pull requests and GitLab merge requests. Diffs, comments, review drafts and pipelines, in one terminal.</p>
+        </div>
+        <div class="hero-act">
+          <div class="install" role="group" aria-label="Install command">
+            <code id="cmd-pipx"><span class="ps" aria-hidden="true">$</span>pipx install tongs<span class="cursor" aria-hidden="true"></span></code>
+            <button class="copy" type="button" data-copy="cmd-pipx" aria-label="Copy install command"><span class="br br-l" aria-hidden="true">[</span><span class="lbl">copy</span><span class="br br-r" aria-hidden="true">]</span></button>
+          </div>
+          <p class="alt">or <code>uv tool install tongs</code>. Python 3.12+.</p>
+          <div class="ctas">
+            <a class="btn btn-primary" href={docs.start}>Get started <span class="arrow" aria-hidden="true">&rarr;</span></a>
+            <a class="link-quiet" href={site.repo}>View on GitHub</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap hero-stage">
+        <div class="light" aria-hidden="true"></div>
+        <figure class="frame">
+          <div class="bar"><span><b>tongs</b> &middot; my reviews</span><span class="meta"><span>demo data</span><button class="pause" type="button" data-toggle="loop-inbox" data-name="inbox loop" aria-controls="loop-inbox" aria-label="play inbox loop">play</button></span></div>
+          <div class="media fade">
+            <picture class="still"><source media="(max-width: 900px)" srcset="/media/inbox-m.webp" width="560" height="400" /><img src="/media/inbox-poster.webp" width="1280" height="336" alt="The tongs inbox on the My Reviews tab: reviews with CI status dots, numbers and titles such as Token-bucket rate limiting for API." /></picture>
+            <video id="loop-inbox" data-loop muted loop playsinline preload="none" width="1280" height="336"
+              aria-label="The tongs inbox: My Reviews lists reviews from acme and nimbus repositories on GitHub and platform and data repositories on GitLab, with CI status, number, title, author, repository and last update. The keys 2, 3 and 1 switch to My MRs, All Open and back, then s pressed twice cycles the sort to CI so the failing data/pipelines !54 rises to the top.">
+              <source src="/media/inbox-loop.webm" type="video/webm" />
+              <source src="/media/inbox-loop.mp4" type="video/mp4" />
+            </video>
+          </div>
+        </figure>
+        <div class="stage-foot">
+          <p class="cap">My Reviews across <code>acme/*</code> on GitHub and <code>platform/*</code> on GitLab, one list. 10 s loop, muted, demo data.</p>
+        </div>
+      </div>
+
+      <div class="works">
+        <div class="wrap">
+          <span><span class="k">works with</span><b>github.com</b>, <b>GitHub Enterprise Server</b>, <b>gitlab.com</b>, <b>self-hosted GitLab</b></span>
+          <span><span class="k">signs in</span>through <b>gh</b>, <b>glab</b>, <b>~/.netrc</b> or your keyring. tongs stores no tokens.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= the session: one rail, each beat a prompt ================= -->
+    <div class="session">
+      <div class="wrap">
+        <div class="rail">
+
+          <!-- heat -->
+          <section class="beat beat-heat hot" aria-labelledby="heat-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># before</span></p>
+            <div class="beat-head">
+              <h2 id="heat-title">Reviews on GitHub. Merge requests on GitLab. A pipeline failing somewhere in between.</h2>
+              <div class="text"><p>Every forge brings its own tabs, badges and notification mail. tongs reads them all from one terminal, so the tabs can close.</p></div>
+            </div>
+            <figure class="heatband" id="heat">
+              <div class="tabs" aria-hidden="true">
+                <div class="tabrow"><span class="chip gh"><span class="dot"></span>acme/api #482</span><span class="chip"><span class="dot"></span>platform/infra !317<span class="n">3</span></span><span class="chip gh"><span class="dot"></span>Checks: acme/web</span><span class="chip"><span class="dot"></span>Pipeline #88213 failed</span><span class="chip gh"><span class="dot"></span>Notifications<span class="n">12</span></span></div>
+                <div class="tabrow"><span class="chip"><span class="dot"></span>data/warehouse !129</span><span class="chip gh"><span class="dot"></span>acme/cli #211</span><span class="chip"><span class="dot"></span>Merge requests: platform</span><span class="chip gh"><span class="dot"></span>Review requested</span><span class="chip"><span class="dot"></span>pytest:integration job log</span></div>
+                <div class="tabrow"><span class="chip gh"><span class="dot"></span>acme/design-system #77</span><span class="chip"><span class="dot"></span>To-do list<span class="n">5</span></span><span class="chip gh"><span class="dot"></span>acme/web #1290</span><span class="chip"><span class="dot"></span>platform/observability !88</span><span class="chip gh"><span class="dot"></span>acme/api #482</span></div>
+              </div>
+              <p class="count" aria-hidden="true"><b>37</b><span>browser tabs</span></p>
+              <span class="arrow-to" aria-hidden="true">&#9472;&#9472;&#9472;&#9658;</span>
+              <div class="clamp" aria-hidden="true">
+                <span class="point"><span class="jaw l"></span><i></i><span class="jaw r"></span></span>
+                <b>1</b><span>terminal</span>
+              </div>
+              <figcaption class="sr-only">Thirty-seven browser tabs across both forges become one terminal.</figcaption>
+            </figure>
+          </section>
+
+          <!-- repos -->
+          <section class="beat" aria-labelledby="repos-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs --scan-root ~/src</span><span class="cmt"># repos</span></p>
+            <div class="beat-split">
+              <div>
+                <h2 id="repos-title">Found, not configured.</h2>
+                <p class="text">tongs reads the git remotes under your scan root, <code>~/git</code> by default, and gathers every open review into My Reviews, My MRs and All Open. Self-hosted GitLab and GitHub Enterprise need one <code>[hosts]</code> entry each, unless the hostname already names the forge.</p>
+                <div class="keyrow">
+                  <span class="kv"><Fragment set:html={k('r')} /> repos</span>
+                  <span class="kv"><Fragment set:html={k('slash')} /> filter</span>
+                  <span class="kv"><Fragment set:html={k('f')} /> forge</span>
+                  <span class="kv"><span class="keys"><Fragment set:html={k('1') + k('2') + k('3')} /></span> inbox tabs</span>
+                </div>
+                <p class="more"><a href={docs.firstRun}>First run</a></p>
+              </div>
+              <figure class="frame">
+                <div class="bar"><span><b>tongs</b> &middot; repositories</span><span class="meta"><span>demo data</span></span></div>
+                <picture><source media="(max-width: 900px)" srcset="/media/repos-m.webp" width="500" height="452" /><img src="/media/repos.webp" width="760" height="452" loading="lazy" decoding="async" alt="Repository list: 14 repositories sorted by forge. GH rows for acme/api, acme/billing, acme/cli and others; GL rows for data/pipelines, platform/infra and platform/observability." /></picture>
+              </figure>
+            </div>
+          </section>
+
+          <!-- review -->
+          <section class="beat" aria-labelledby="review-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># enter, 2 diff</span></p>
+            <div class="beat-head">
+              <h2 id="review-title">Review without leaving the terminal.</h2>
+              <div class="text">
+                <p>Unified diffs with word-level highlights, or split side by side, with Monokai syntax. Comment on a line or a selection, answer threads, and write suggestions in your own editor.</p>
+                <div class="keyrow">
+                  <span class="kv"><span class="keys"><Fragment set:html={k('j')} /><span class="sep" aria-hidden="true">/</span><Fragment set:html={k('k')} /></span> move</span>
+                  <span class="kv"><Fragment set:html={k('v')} /> split</span>
+                  <span class="kv"><Fragment set:html={k('J')} /> select</span>
+                  <span class="kv"><Fragment set:html={k('c')} /> comment</span>
+                  <span class="kv"><Fragment set:html={k('f3')} /> suggest</span>
+                </div>
+              </div>
+            </div>
+            <figure class="frame">
+              <div class="bar"><span><b>tongs</b> &middot; !54 backfill events in bounded batches &middot; diff</span><span class="meta"><span>demo data</span><button class="pause" type="button" data-toggle="loop-diff" data-name="diff loop" aria-controls="loop-diff" aria-label="play diff loop">play</button></span></div>
+              <div class="media fade">
+                <picture class="still"><source media="(max-width: 900px)" srcset="/media/diff-m.webp" width="640" height="560" /><img src="/media/diff-poster.webp" width="1280" height="640" loading="lazy" decoding="async" alt="Unified diff of pipelines/backfill.py: BATCH_SIZE changes from 1_000 to 5_000, with removed lines in red, added lines in green, word-level highlights and Monokai syntax colors." /></picture>
+                <video id="loop-diff" data-loop muted loop playsinline preload="none" width="1280" height="640"
+                  aria-label="Reviewing backfill.py in data/pipelines: the unified diff switches to split view, a comment on line 12 and a suggestion for lines 13 and 14 go into the review draft, and the draft is submitted once with the verdict approve.">
+                  <source src="/media/diff-loop.webm" type="video/webm" />
+                  <source src="/media/diff-loop.mp4" type="video/mp4" />
+                </video>
+              </div>
+            </figure>
+            <p class="cap">Review <code>!54</code> in <code>data/pipelines</code>: a comment and a suggestion go into the review draft, then the review is submitted once.</p>
+          </section>
+
+          <!-- drafts -->
+          <section class="beat" aria-labelledby="drafts-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># ctrl+g review draft</span></p>
+            <div class="beat-split">
+              <div>
+                <h2 id="drafts-title">Your drafts survive. Your focus does too.</h2>
+                <p class="text">Comments collect in a local review draft until you submit it once. Quit or crash, and the draft is still there when you come back. An interrupted submission resumes where it stopped and never repeats an unconfirmed write on its own.</p>
+                <ol class="steps">
+                  {draftSteps.map((s) => (
+                    <li><span class="keys"><Fragment set:html={k(s.key)} /></span><span><b>{s.title}</b> {s.text}</span></li>
+                  ))}
+                </ol>
+                <p class="more"><a href={docs.drafts}>Review drafts</a><span class="new">new guide</span></p>
+              </div>
+              <figure class="frame">
+                <div class="bar"><span><b>tongs</b> &middot; review draft &middot; version 3</span><span class="meta"><span>demo data</span></span></div>
+                <picture><source media="(max-width: 900px)" srcset="/media/draft-m.webp" width="660" height="440" /><img src="/media/draft.webp" width="1000" height="756" loading="lazy" decoding="async" alt="The review draft screen: version 3, editable, ready. Two draft inline comments on pipelines/backfill.py, one on line 12 and one on line 13 with a suggestion block, the verdict set to approve, and the keys for submit, edit, remove and discard." /></picture>
+              </figure>
+            </div>
+          </section>
+
+          <!-- ci -->
+          <section class="beat" aria-labelledby="ci-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># 5 pipeline</span></p>
+            <div class="beat-head">
+              <h2 id="ci-title">Find the failing job. Read the log. Retry.</h2>
+              <div class="text">
+                <p>Pipelines from either forge, jobs grouped by stage. Open the log with its colors intact, search it as you type, and retry with a second press of the same key.</p>
+                <div class="keyrow">
+                  <span class="kv"><Fragment set:html={k('enter')} /> open</span>
+                  <span class="kv"><Fragment set:html={k('slash')} /> search</span>
+                  <span class="kv"><Fragment set:html={k('n')} /> next match</span>
+                  <span class="kv"><span class="keys"><Fragment set:html={k('R') + k('R')} /></span> retry</span>
+                </div>
+              </div>
+            </div>
+            <figure class="frame ci">
+              <div class="bar"><span><b>tongs</b> &middot; !54 backfill events in bounded batches &middot; pipeline</span><span class="meta"><span>demo data</span><button class="pause" type="button" data-toggle="loop-ci" data-name="pipeline loop" aria-controls="loop-ci" aria-label="play pipeline loop">play</button></span></div>
+              <div class="media fade">
+                <picture class="still"><source media="(max-width: 900px)" srcset="/media/ci-m.webp" width="740" height="511" /><img src="/media/ci-poster.webp" width="1280" height="640" loading="lazy" decoding="async" alt="Pipeline 88213, failed. Jobs grouped under lint, test, build and deploy; pytest:integration is marked FAILED." /></picture>
+                <video id="loop-ci" data-loop muted loop playsinline preload="none" width="1280" height="640"
+                  aria-label="Pipeline 88213 for data/pipelines: pytest:integration failed in the test stage. The job log opens, a search for error jumps between matches, and a second press of R retries the job.">
+                  <source src="/media/ci-loop.webm" type="video/webm" />
+                  <source src="/media/ci-loop.mp4" type="video/mp4" />
+                </video>
+              </div>
+            </figure>
+            <p class="cap">A failed job carries the word <code>FAILED</code>, never color alone. Retry asks first: <code>Retry job pytest:integration? Press R again.</code></p>
+          </section>
+
+          <!-- keys -->
+          <section class="beat" aria-labelledby="keys-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># ctrl+p finds the rest</span></p>
+            <div class="beat-head">
+              <h2 id="keys-title">Twelve keys cover most of a review.</h2>
+              <div class="text"><p>Every action has a key, and the command palette finds the rest by name.</p></div>
+            </div>
+            <ul class="keymap">
+              {keymap.map((row) => (
+                <li>
+                  <span class="kk">
+                    <Fragment set:html={row.keys.map(k).join(row.sep ? `<span class="sep" aria-hidden="true">${row.sep}</span>` : '')} />
+                  </span>
+                  <span class="what">{row.what}</span>
+                  <span class="where">{row.where}</span>
+                </li>
+              ))}
+            </ul>
+            <p class="beat-foot"><span>Approve <Fragment set:html={k('A')} />, merge <Fragment set:html={k('M')} /> and close <Fragment set:html={k('X')} /> also ask twice.</span><a class="link-quiet" href={docs.keys}>All keybindings</a></p>
+          </section>
+
+          <!-- beyond -->
+          <section class="beat" aria-labelledby="beyond-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># beyond the terminal</span></p>
+            <div class="beat-head">
+              <h2 id="beyond-title">One engine. Every surface.</h2>
+              <div class="text"><p>The desktop workspace and the MCP server run on the same services, forge clients, cache and review drafts as the terminal app.</p></div>
+            </div>
+            <div class="surfaces">
+              <article class="surface">
+                <figure class="frame shot-desktop">
+                  <div class="bar"><span><b>tongs</b> &middot; desktop &middot; files changed</span><span class="meta"><span class="beta">beta</span><span>demo data</span></span></div>
+                  <picture><source media="(max-width: 900px)" srcset="/media/desktop-review-m.webp" width="960" height="540" /><img src="/media/desktop-review.webp" width="1920" height="1080" loading="lazy" decoding="async" alt="The tongs desktop app, beta, reviewing !482 in acme/api: the repository sidebar, the Files changed tab with a pending comment on rate_limit.py line 17, and the Your review drawer with the verdict choices and Submit review." /></picture>
+                </figure>
+                <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs desktop install</span></p>
+                <h3>A desktop workspace, same drafts <span class="beta">beta</span></h3>
+                <p class="body">Files changed, a review composer with suggestions, and the Your review drawer. A beta for Fedora 44 on x86_64, installed per user or from the RPMs on the v1.0.0 release. The terminal app stays the main way to use tongs.</p>
+                <p class="more"><a href={docs.desktop}>Install the desktop app</a></p>
+              </article>
+              <article class="surface">
+<pre class="term" aria-label="Terminal session: install the MCP extra and run tongs-mcp, which offers six tools"><span class="ps">$ </span>pipx install <span class="s">"tongs[mcp]"</span>
+<span class="ps">$ </span>tongs-mcp
+<span class="c"># stdio server, six tools</span>
+<span class="k">list_mrs</span>      <span class="k">get_mr</span>        <span class="k">get_mr_diff</span>
+<span class="k">post_comment</span>  <span class="k">approve_mr</span>    <span class="k">list_pipelines</span>
+<span class="c"># merge, close and cancel stay with you</span></pre>
+                <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs-mcp</span></p>
+                <h3>Your agent reads the same inbox</h3>
+                <p class="body">An MCP server for Claude Code, Codex and Claude Desktop. It can read, comment and approve. Destructive actions are left out on purpose.</p>
+                <p class="more"><a href={docs.mcp}>MCP server</a><span class="new">new guide</span></p>
+              </article>
+            </div>
+          </section>
+
+          <!-- find your way: generated from the sidebar config -->
+          <section class="beat" aria-labelledby="way-title">
+            <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>ls docs/</span></p>
+            <div class="beat-head">
+              <h2 id="way-title">Find your way.</h2>
+              <div class="text"><p>Five groups, the same words in the header, here and in the docs sidebar.</p></div>
+            </div>
+            <button class="prompt-search" type="button" data-search aria-label="Search the docs" aria-keyshortcuts="/ Control+K Meta+K"><span class="ps" aria-hidden="true">/</span><span class="grow">search the docs: drafts, retry, keyring, scan_root</span><kbd aria-hidden="true">/</kbd></button>
+            <nav class="routes" aria-label="Documentation groups">
+              {nav.map((g) => (
+                <div class="route">
+                  <p class="dir">{g.dir}</p>
+                  <h3><a href={href(g.items[0].slug)}>{g.label}</a>{g.badge && <span class="beta">{g.badge}</span>}</h3>
+                  <p>{g.blurb}</p>
+                  <ul>
+                    {g.items.map((i) => (
+                      <li><a href={href(i.slug)}>{i.label}</a>{i.isNew && <span class="new">new</span>}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </nav>
+          </section>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= resolve: the calm ================= -->
+    <section class="resolve" aria-labelledby="resolve-title">
+      <div class="wrap">
+        <div class="resolve-head">
+          <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span class="cursor" aria-hidden="true"></span><span class="sr-only">Ready</span></p>
+          <h2 id="resolve-title">Code lives in forges. tongs is how you handle them.</h2>
+          <p>A smith never holds hot metal by hand. tongs gives you the same steady grip on GitHub and GitLab: every review, diff and pipeline, held in one place.</p>
+        </div>
+        <div class:list={["resolve-body", { solo: !import.meta.env.TONGS_HAS_TRAILER }]}>
+          <div>
+            <div class="installs">
+              <div class="row"><span class="lbl-row">recommended</span>
+                <div class="install"><code id="cmd-pipx2"><span class="ps" aria-hidden="true">$</span>pipx install tongs</code><button class="copy" type="button" data-copy="cmd-pipx2" aria-label="Copy: pipx install tongs"><span class="br br-l" aria-hidden="true">[</span><span class="lbl">copy</span><span class="br br-r" aria-hidden="true">]</span></button></div></div>
+              <div class="row"><span class="lbl-row">with uv</span>
+                <div class="install"><code id="cmd-uv"><span class="ps" aria-hidden="true">$</span>uv tool install tongs</code><button class="copy" type="button" data-copy="cmd-uv" aria-label="Copy: uv tool install tongs"><span class="br br-l" aria-hidden="true">[</span><span class="lbl">copy</span><span class="br br-r" aria-hidden="true">]</span></button></div></div>
+              <div class="row"><span class="lbl-row">with pip</span>
+                <div class="install"><code id="cmd-pip"><span class="ps" aria-hidden="true">$</span>pip install tongs</code><button class="copy" type="button" data-copy="cmd-pip" aria-label="Copy: pip install tongs"><span class="br br-l" aria-hidden="true">[</span><span class="lbl">copy</span><span class="br br-r" aria-hidden="true">]</span></button></div></div>
+            </div>
+            <div class="ctas"><a class="btn btn-quiet" href={docs.start}>Read the docs</a><a class="btn btn-quiet" href={site.pypi}>PyPI</a></div>
+          </div>
+          {import.meta.env.TONGS_HAS_TRAILER && (
+            <figure class="trailer">
+              <video controls preload="none" playsinline poster="/media/trailer-poster.png" width="1920" height="1080" aria-describedby="trailer-cap">
+                <source src="/media/trailer.mp4" type="video/mp4" />
+              </video>
+              <figcaption id="trailer-cap" class="cap">The trailer, about a minute.</figcaption>
+            </figure>
+          )}
+        </div>
+      </div>
+    </section>
+    <span id="copy-status" class="sr-only" aria-live="polite"></span>
+  </main>
+</Plain>

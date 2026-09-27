@@ -127,13 +127,13 @@ tongs never stores your tokens. It delegates to `gh auth token` / `glab config g
 - **General comments** -- press `c` from the overview tab to post a top-level MR comment
 - **Durable review drafts** -- press `Ctrl+G` to start review mode, collect comments locally, then submit them as one review with a verdict
 
-### Desktop review workspace (unreleased)
+### Desktop review workspace (beta)
 
-The terminal TUI remains the default interface. The desktop workspace is an
-unreleased optional interface over the same repositories, reviews, and drafts,
+The terminal TUI remains the default interface. The desktop workspace is a
+beta optional interface over the same repositories, reviews, and drafts,
 documented in the [desktop workspace guide](docs/desktop/workspace.md). It has
 its own installation path, described in
-[Desktop application](#desktop-application) below.
+[Desktop application (beta)](#desktop-application-beta) below.
 
 The desktop sidebar scans the configured local `scan_root` and `scan_depth`.
 It supports display-name search, GitHub/GitLab filtering, and Name, Forge, or
@@ -180,7 +180,7 @@ can omit later Markdown. HTTPS links open externally only after explicit
 activation.
 
 The defects that are known and unfixed in the desktop workspace are listed in
-[known limitations](docs/desktop/known-limitations.md).
+[known issues](docs/releases/known-issues.md).
 
 ### Pipeline / CI
 
@@ -218,7 +218,7 @@ The defects that are known and unfixed in the desktop workspace are listed in
 - **Copy URL** (`Ctrl+Y`) -- yank the MR URL to clipboard
 - **Refresh** (`Ctrl+R`) -- reload the current view
 
-## Desktop application
+## Desktop application (beta)
 
 Every stable release publishes the desktop assets to the GitHub Release of the same `vX.Y.Z` tag that publishes `tongs` to PyPI: the signed per-user archive, its release manifest and Sigstore bundle, the Fedora RPMs, an SBOM and a checksum list. `tongs --install-desktop` selects the release whose version equals the installed core, so the pair to run for one version is:
 
@@ -227,7 +227,7 @@ pip install tongs==1.0.0
 tongs --install-desktop
 ```
 
-> Until the first stable tag is pushed there is no published archive, GitHub Release asset or RPM to install from. The commands and package names below describe the implemented contract that every release satisfies.
+> The desktop app is a beta. The v1.0.0 GitHub Release attaches the per-user archive and the Fedora RPMs. The commands and package names below describe the contract that every release satisfies.
 
 The desktop application is optional. Plain `tongs` keeps scanning your repositories and opening the TUI; it never downloads, activates, or starts the desktop shell on its own.
 
@@ -238,7 +238,7 @@ The release contract matches Linux, Fedora 44, x86_64, and the GNU ABI. The nati
 ```bash
 tongs --install-desktop                  # exactly the same as: tongs desktop install
 tongs desktop install --version 1.2.3    # install one exact release
-tongs desktop update                     # install the newest verified release
+tongs desktop update                     # install the verified release matching the core
 tongs desktop status                     # inspect health; add --json for machine output
 tongs desktop repair                     # recover activation or menu state
 tongs desktop repair --redownload        # download a verified replacement if local recovery fails
@@ -247,7 +247,7 @@ tongs desktop uninstall                  # remove only the per-user activation
 
 The archive installs under `$XDG_DATA_HOME`, or `~/.local/share` when that variable is unset or relative. It needs no root, owns only its own menu entry, and never writes to `/usr`.
 
-Every release is verified before anything is extracted: fixed-repository release discovery, a GitHub-managed attestation bound to an exact workflow and tag identity, manifest and archive hashes, and a local downgrade guard. See [Security and signing](docs/reference/security.md) for the full contract and its limits, and the [desktop installation guide](docs/desktop/installation.md) for the recovery states and the `status` fields.
+Every release is verified before anything is extracted: fixed-repository release discovery, a GitHub-managed attestation bound to an exact workflow and tag identity, manifest and archive hashes, and a local downgrade guard. See [Security and signing](docs/reference/security.md) for the full contract and its limits, and the [desktop lifecycle reference](docs/reference/desktop-lifecycle.md) for the recovery states and the `status` fields.
 
 ### Fedora RPMs
 
@@ -265,7 +265,7 @@ The two methods are independent. The per-user commands never install RPM package
 
 ## Keybindings
 
-The keybindings below describe the terminal TUI. The unreleased desktop
+The keybindings below describe the terminal TUI. The beta desktop
 workspace uses labelled controls and does not change these terminal commands.
 
 ### Global
@@ -579,9 +579,7 @@ All tools accept a `repo_path` in `hostname/owner/repo` format (e.g. `github.com
 
 The terminal application is the released, supported product. The version you get from PyPI today provides the multi-forge inbox, the diff viewer, inline comments and suggested changes, discussion threads, MR actions, pipeline and CI drill-down, the SQLite cache, the plugin system, and the MCP server.
 
-Two terminal features described above are not in that release yet: the split diff view with its `v` toggle and `h` / `l` side focus, and durable review drafts with the `Ctrl+G` review flow. Both are implemented on the development branch and arrive with the next release.
-
-The desktop application, its per-user installer, and the Fedora RPM packaging are also implemented in this tree and unreleased. Hardware-accelerated Electron on the supported Fedora host, packaging acceptance, and the release decision remain separate, unmet gates. The defects known to be shipping unfixed, and the acceptance scenarios not yet executed, are listed in [known limitations](docs/desktop/known-limitations.md).
+tongs 1.0.0 includes the split diff view and durable review drafts. The desktop workspace is a beta attached to the v1.0.0 release, for Fedora 44 x86_64, together with its per-user installer and Fedora RPMs. Known defects are listed in [known issues](docs/releases/known-issues.md).
 
 Track what is planned and what is blocked through the [open issues](https://github.com/andre-motta/tongs/issues) and their dependency links rather than through a phase table.
 

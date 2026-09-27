@@ -315,7 +315,26 @@ def test_the_production_call_receives_the_packaging_lane(
     )
 
 
-def test_the_docs_lane_builds_strictly_with_the_dev_extra_pins(
+#: The one site build, run by the ci.yml docs lane on every pull request that
+#: selects it and by docs.yml before each Pages deploy.
+SITE_BUILD_COMMANDS = ["npm ci --prefix site", "npm run build --prefix site"]
+SETUP_NODE = "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+
+
+def _run_commands(job: dict[str, Any]) -> list[str]:
+    return [step["run"] for step in job["steps"] if "run" in step]
+
+
+def _setup_node_inputs(job: dict[str, Any]) -> dict[str, Any]:
+    (step,) = [
+        step
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith(SETUP_NODE)
+    ]
+    return step["with"]
+
+
+def test_the_docs_lane_builds_the_locked_site_strictly(
     ci: dict[str, Any],
 ) -> None:
     job = ci["jobs"]["docs"]
@@ -324,18 +343,78 @@ def test_the_docs_lane_builds_strictly_with_the_dev_extra_pins(
     assert job["timeout-minutes"] == 10
     assert job["permissions"] == {"contents": "read"}
     assert "outputs" not in job
-    commands = [step["run"] for step in job["steps"] if "run" in step]
-    assert commands[:2] == [
-        "python -m pip install mkdocs==1.6.1 mkdocs-material==9.7.7",
-        'mkdocs build --strict --site-dir "$RUNNER_TEMP/site"',
-    ]
+    commands = _run_commands(job)
+    assert commands[:2] == SITE_BUILD_COMMANDS
+    # Node 22.12 or newer is Astro's floor; "22" resolves to the newest 22.x,
+    # the same line the desktop jobs use.  No package-manager cache, as in
+    # every other Node job, so a restored cache never feeds a deploy.
+    assert _setup_node_inputs(job) == {
+        "node-version": "22",
+        "package-manager-cache": False,
+    }
     for step in job["steps"]:
         if "uses" in step and "checkout" in step["uses"]:
             assert step["with"]["persist-credentials"] is False
-    pin_pattern = re.compile(r"(mkdocs(?:-material)?)==([0-9][\w.]*)")
-    pyproject_pins = dict(pin_pattern.findall((ROOT / "pyproject.toml").read_text()))
-    assert dict(pin_pattern.findall(commands[0])) == pyproject_pins
-    assert set(pyproject_pins) == {"mkdocs", "mkdocs-material"}
+
+
+def test_the_deploy_builds_exactly_what_the_docs_lane_checks(
+    ci: dict[str, Any],
+) -> None:
+    """The pull-request lane only proves the deploy if both run one build, so
+    the two jobs must run the same commands with the same Node setup."""
+
+    docs = _load(ROOT / ".github/workflows/docs.yml")
+    # yaml parses the bare ``on`` key as True.
+    assert docs[True] == {"push": {"branches": ["main"]}, "workflow_dispatch": None}
+    # npm install scripts run in the build job, so only deploy may write
+    # Pages or mint an OIDC token.
+    assert docs["permissions"] == {"contents": "read"}
+    assert docs["jobs"]["build"]["permissions"] == {"contents": "read"}
+    assert docs["jobs"]["deploy"]["permissions"] == {
+        "pages": "write",
+        "id-token": "write",
+    }
+    build = docs["jobs"]["build"]
+    # The lane runs the deploy's build, then its own Markdown lint, which
+    # test_docs_lane_contract pins.
+    deploy_commands = _run_commands(build)
+    lane_commands = _run_commands(ci["jobs"]["docs"])
+    assert lane_commands[: len(deploy_commands)] == deploy_commands
+    assert all(
+        ".github/linters" in command
+        for command in lane_commands[len(deploy_commands) :]
+    )
+    assert _setup_node_inputs(build) == _setup_node_inputs(ci["jobs"]["docs"])
+    (upload,) = [
+        step
+        for step in build["steps"]
+        if "upload-pages-artifact" in str(step.get("uses", ""))
+    ]
+    assert upload["with"] == {"path": "site/dist"}
+    assert docs["jobs"]["deploy"]["needs"] == "build"
+    assert "mkdocs" not in (ROOT / "pyproject.toml").read_text()
+    assert not (ROOT / "mkdocs.yml").exists()
+
+
+def test_the_site_toolchain_is_pinned_exactly_and_locked() -> None:
+    """``npm ci`` installs from the committed lockfile, and Astro and Starlight
+    are 0.x or fast-moving majors whose minors break configuration, so every
+    direct dependency is an exact version rather than a range."""
+
+    package = json.loads((ROOT / "site/package.json").read_text())
+    assert (ROOT / "site/package-lock.json").is_file()
+    assert package["scripts"]["build"]
+    dependencies = {
+        **package.get("dependencies", {}),
+        **package.get("devDependencies", {}),
+    }
+    assert {"astro", "@astrojs/starlight"} <= set(dependencies)
+    ranged = {
+        name: version
+        for name, version in dependencies.items()
+        if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.]+)?", version) is None
+    }
+    assert ranged == {}
 
 
 def _gate_steps(ci: dict[str, Any]) -> list[dict[str, Any]]:
@@ -618,28 +697,6 @@ def test_every_action_in_every_workflow_is_sha_pinned() -> None:
             if not (has_sha and has_version_comment):
                 unpinned.append(f"{path.name}: {uses}")
     assert unpinned == []
-
-
-def test_docs_workflow_mkdocs_pin_matches_the_dev_extra() -> None:
-    """``docs.yml`` installs mkdocs directly instead of the ``dev`` extra, so
-    nothing else keeps the two version pins from drifting apart; see issue
-    #149."""
-
-    pyproject_text = (ROOT / "pyproject.toml").read_text()
-    docs_workflow = _load(ROOT / ".github/workflows/docs.yml")
-    install_step = next(
-        step
-        for step in docs_workflow["jobs"]["build"]["steps"]
-        if "mkdocs-material" in str(step.get("run", ""))
-    )
-    pin_pattern = re.compile(r"(mkdocs(?:-material)?)==([0-9][\w.]*)")
-    workflow_pins = dict(pin_pattern.findall(install_step["run"]))
-    pyproject_pins = dict(pin_pattern.findall(pyproject_text))
-    # A non-vacuity check: without it, two empty dicts (a regex that stopped
-    # matching either file) would compare equal below and the test would
-    # pass without having checked anything.
-    assert set(workflow_pins) == {"mkdocs", "mkdocs-material"}
-    assert workflow_pins == pyproject_pins, (workflow_pins, pyproject_pins)
 
 
 def test_every_new_upload_is_retry_safe_and_retained_for_fourteen_days(

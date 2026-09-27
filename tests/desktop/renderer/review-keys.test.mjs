@@ -932,21 +932,22 @@ test("Space on the unified gutter opens the composer without collapsing the rang
   assert.equal(view.container.querySelectorAll(".line-selected").length, 2);
 });
 
-test("both documentation pages carry the same parity table the map publishes", () => {
+test("the keybindings reference carries the parity table the map publishes", () => {
   const table = reviewKeyParityTable();
-  const pages = [
-    "docs/reference/keybindings.md",
-    "docs/desktop/workspace.md",
-  ];
-  for (const page of pages) {
-    const text = readFileSync(
-      new URL(`../../../${page}`, import.meta.url),
-      "utf8",
-    );
+  const read = (page) =>
+    readFileSync(new URL(`../../../${page}`, import.meta.url), "utf8");
+  // The keybindings reference is the single home of the desktop key map.
+  assert.equal(
+    read("docs/reference/keybindings.md").includes(table),
+    true,
+    "docs/reference/keybindings.md does not carry the parity table verbatim",
+  );
+  // The desktop pages link to it instead of carrying a second copy.
+  for (const page of ["docs/desktop/workspace.md", "docs/desktop/reviewing.md"]) {
     assert.equal(
-      text.includes(table),
+      read(page).includes("/reference/keybindings/"),
       true,
-      `${page} does not carry the parity table verbatim`,
+      `${page} does not link to the keybindings reference`,
     );
   }
   // Every key the map registers is named in the table.

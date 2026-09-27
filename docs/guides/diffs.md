@@ -1,109 +1,110 @@
-# Diff viewer
+---
+title: Diffs and comments
+description: "Read a review's diff in unified or split view, select lines, and comment or suggest changes inline."
+opens: "++2++ from a review"
+---
 
-The diff viewer is the core review surface. Open it by pressing ++2++ from any MR
-detail view to switch to the Diff tab.
+The Diff tab is where you read a review and comment on it. Press ++2++ from
+any review to open it.
+
+<figure class="shot"><a href="/media/diff-poster.webp" aria-label="Open the full-size screenshot of the diff viewer"><div class="frame"><div class="bar" data-pagefind-ignore><span><b>tongs</b> &middot; diff</span><span class="meta"><span class="full">full size &#8599;</span></span></div><picture><source media="(max-width: 560px)" srcset="/media/diff-m.webp" width="640" height="560" /><img src="/media/diff-poster.webp" width="1280" height="640" alt="The tongs diff viewer with the changed-files tree on the left and a unified, syntax-highlighted Python diff on the right, with word-level highlights on the changed values."></picture></div></a><figcaption class="cap">demo data, cropped on small screens</figcaption></figure>
 
 ## Layout
 
-The diff viewer uses a split-pane layout:
+The Diff tab has two panes:
 
-- **Left pane** -- file tree showing all changed files with status indicators
-  (`M` modified, `A` added, `D` deleted, `R` renamed)
-- **Right pane** -- the diff content for the selected file, with syntax
-  highlighting, line numbers, and gutter markers
+- **File tree** on the left. It lists every changed file with a status letter
+  (`M` modified, `A` added, `D` deleted, `R` renamed), its `+` and `-` line
+  counts, and how many of its comment threads are open or resolved.
+- **Diff** on the right. It shows the selected file with syntax highlighting,
+  line numbers and gutter markers.
 
 ## Unified and split view
 
-Press ++v++ to toggle between unified and split diff layout. In split view,
-the old and new sides of the file render in synchronized side-by-side
-columns; press ++h++ or ++l++ to move focus between the old and new side.
-At narrow terminal widths, split view falls back to unified and tongs
-notifies you that split was selected but unified is being used at that
-width.
+Press ++v++ to switch between unified and split view. Split view shows the old
+and new versions side by side with their lines aligned. Press ++h++ to move
+focus to the old side and ++l++ to move it to the new side.
 
-## File navigation
+When the terminal is too narrow for split view, tongs uses unified view and
+tells you: "Split view selected; using unified at this width".
 
-| Key | Action |
-|-----|--------|
-| ++n++ | Jump to the next file |
-| ++shift+n++ | Jump to the previous file |
-
-You can also click any file in the file tree to jump directly to it.
-
-## Line navigation
+## Moving around
 
 | Key | Action |
 |-----|--------|
-| ++j++ | Move cursor down one line |
-| ++k++ | Move cursor up one line |
+| ++j++ / ++k++ | Move the cursor down or up one line |
+| ++n++ / ++shift+n++ | Next or previous file, wrapping at either end |
+| ++close-bracket++ / ++open-bracket++ | Next or previous comment thread |
 
-The cursor highlights the active line and updates the gutter indicator.
+Click a file in the tree to jump straight to it.
 
-## Visual line selection
+## Selecting lines
 
-Select multiple lines for multi-line comments:
+Select a range of lines to comment on several lines at once or to suggest a
+replacement.
 
 | Key | Action |
 |-----|--------|
-| ++shift+j++ | Extend selection down |
-| ++shift+k++ | Extend selection up |
-| ++ctrl++ + click | Extend selection to clicked line |
-| ++escape++ | Clear selection |
+| ++shift+j++ | Extend the selection down |
+| ++shift+k++ | Extend the selection up |
+| ++ctrl++ + click | Extend the selection to the clicked line |
+| ++escape++ | Clear the selection |
 
-## Truncated diffs
+## Reading the diff
 
-When a forge API truncates a large diff (returning no patch content), the file
-still appears in the file tree with its +/- stats. The diff pane shows a
-"Diff not available" message with a prompt to press ++o++ to view the full file
-in your browser.
+- **Syntax highlighting.** tongs picks a highlighter from the file name, using
+  Pygments.
+- **Word-level changes.** In the unified view, the words that changed inside a
+  changed line are bold and underlined, so a small edit in a long line stands out.
+- **Folded context.** Long unchanged stretches between changes collapse into a
+  marker such as `... 42 unchanged lines ...`.
+- **Markdown preview.** On a Markdown file, press ++m++ to switch between the
+  diff and the rendered file.
+- **Files without a diff.** When the forge truncates a large diff or does not
+  expose it, the file stays in the tree with its line counts and the pane says
+  why. Binary files, empty files, mode changes and pure renames get a short
+  label instead of a diff. Press ++o++ to open the review in your browser.
 
-## Syntax highlighting
+## Comment threads in the diff
 
-tongs uses Pygments to apply syntax highlighting to 500+ languages. All lines in
-a file are highlighted in a single bulk Pygments call for performance, rather
-than per-line.
-
-## Word-level diffs
-
-Within modified lines, tongs highlights the specific words that changed using
-bold and underline styling. This makes it easy to spot small changes in long
-lines without reading the entire line.
-
-## Context folding
-
-Long unchanged sections between changes are collapsed into a marker showing how
-many lines were hidden (for example, "... 42 unchanged lines ..."). This keeps
-the diff focused on what actually changed.
-
-## Markdown preview
-
-For `.md` files, press ++m++ to toggle between the raw diff and a rendered
-Markdown preview.
-
-## Inline comments in the diff
-
-Existing discussion threads appear as gutter markers next to the relevant lines
-in the diff. Press ++d++ on a line with a marker to expand or collapse the
-thread. Press ++open-bracket++ and ++close-bracket++ to jump between comments.
+Existing threads show as gutter markers next to their lines. Press ++d++ on a
+marked line to expand or collapse its thread. On a line with a thread, press
+++r++ to reply and ++shift+r++ to resolve or reopen it. tongs asks you to press
+++shift+r++ a second time to confirm.
 
 ### Adding a comment
 
-1. Navigate to the line (or select multiple lines) where you want to comment
-2. Press ++c++ to open the comment editor at the bottom of the screen
-3. Write your comment
-4. Press ++ctrl+s++ to submit, or ++escape++ to cancel
+1. Move to the line, or select the lines, you want to comment on.
+2. Press ++c++ to open the comment editor at the bottom of the screen.
+3. Write your comment.
+4. Press ++ctrl+s++ to submit, or ++escape++ to cancel. If the editor has text,
+   press ++escape++ twice to discard it.
 
 ### Suggesting changes
 
-1. Select the lines you want to suggest a replacement for
-2. Press ++f3++ to open your `$EDITOR` with the selected code pre-filled
-3. Edit the code to show your suggested replacement
-4. Save and close the editor
-5. tongs posts the suggestion using the forge's native suggestion syntax
-   (GitHub `` ```suggestion `` / GitLab `` ```suggestion:-0+N ``)
+1. Select the lines you want to replace. Suggestions work on the new side of
+   the diff only.
+2. Press ++f3++. tongs opens your editor with the selected code filled in.
+3. Edit the code into the replacement you suggest.
+4. Save and close the editor.
+5. tongs posts the suggestion in the forge's own syntax: `` ```suggestion ``
+   on GitHub and `` ```suggestion:-0+N `` on GitLab.
+
+If you close the editor without changing the code, tongs cancels the
+suggestion.
 
 ### External editor
 
-Press ++f2++ inside the comment editor to switch to your preferred external
-editor. The comment text is transferred to the editor and back when you save and
-close.
+Press ++f2++ in the comment editor to continue the comment in an external
+editor. tongs moves the text to the editor and back when you save and close
+it.
+
+++f2++ and ++f3++ use `$VISUAL`, then `$EDITOR`, then the first of `nvim`,
+`vim`, `vi` and `nano` found on your `PATH`. ++f2++ is not available on
+Windows.
+
+:::tip[Review drafts]
+While a review draft is open (++ctrl+g++), ++c++, ++r++ and ++f3++ add to the
+draft instead of posting right away. You submit the whole draft once. See
+[Review drafts](/guides/review-drafts/).
+:::

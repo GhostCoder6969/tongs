@@ -17,8 +17,8 @@ contexts, declaration allowlists, resource validation, plugin IDs, and UI
 scoping are supported isolation boundaries for accidental access. They do not
 sandbox a hostile installed extension.
 
-Use `docs/guides/plugins.md` for the terminal user contract,
-`docs/plugins/provider.md` for the desktop provider contract, and
+Use `docs/extend/terminal-plugins.md` for the terminal user contract,
+`docs/extend/desktop-providers.md` for the desktop provider contract, and
 `examples/desktop-plugin/README.md` for the installable reference package.
 
 ## Plugin System Architecture
@@ -163,7 +163,7 @@ The public provider declarations are in `src/tongs/plugins/desktop.py`.
 `src/tongs/plugins/desktop_registry.py` owns independent discovery, compatibility,
 and bounded lifecycle management. `src/tongs/plugins/desktop_resources.py`
 validates packaged resources. The user-facing contract is documented in
-`docs/plugins/provider.md`, and `examples/desktop-plugin` is the installable
+`docs/extend/desktop-providers.md`, and `examples/desktop-plugin` is the installable
 reference distribution.
 
 ### Provider and manifest

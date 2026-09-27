@@ -1,28 +1,39 @@
-# Desktop plugin providers
+---
+title: Desktop plugin providers
+description: "Add a module, navigation, commands and help to the tongs desktop app from an installed Python package."
+---
 
-The desktop plugin SDK lets an installed Python distribution add a module,
-navigation item, command, packaged help, and a narrow Python provider to the
-Tongs desktop application. The current public API major is **1**.
+:::note[Beta]
+Providers run inside the desktop app, which is a beta. See
+[Install the desktop app](/desktop/installation/).
+:::
+
+The desktop plugin SDK lets an installed Python package add a UI module,
+navigation items, commands, packaged help and a Python provider to the tongs
+desktop app. The current API major version is **1**.
 
 Desktop support is opt-in. A terminal plugin registered under `tongs.plugins`
-continues to work without a desktop provider. A desktop provider uses the
-separate `tongs.desktop_plugins` entry-point group, and Tongs discovers the two
-groups independently.
+keeps working without a desktop provider. A desktop provider uses the separate
+`tongs.desktop_plugins` entry-point group, and tongs discovers the two groups
+independently.
 
-Desktop providers and their ESM and CSS resources are trusted installed code.
-Manifest allowlists, plugin-scoped APIs, resource containment, and CSS isolation
-reduce accidental cross-plugin access. They do not sandbox a malicious Python
-or UI extension. Install a plugin only when you trust its publisher and code.
+:::caution[Providers are trusted code]
+A desktop provider and its ESM and CSS resources are installed code that runs
+with your permissions. Manifest allowlists, plugin-scoped APIs, resource
+containment and CSS isolation prevent accidental access between plugins. They
+do not sandbox a malicious Python or UI extension. Install a plugin only when
+you trust its publisher and code.
+:::
 
 ## Start from the reference package
 
-The repository contains a separately installable example in
-`examples/desktop-plugin`. It is source in the Tongs checkout, not a package
-published separately on PyPI. The example has both terminal and desktop entry
-points, a production provider, and prebuilt ESM, CSS, and Markdown resources.
+The tongs repository contains an installable example in
+`examples/desktop-plugin`. It lives in the source checkout and is not published
+on PyPI. It has both terminal and desktop entry points, a complete provider,
+and prebuilt ESM, CSS and Markdown resources.
 
-Install Tongs and the example into the same isolated Python environment from the
-repository root:
+From the repository root, install tongs and the example into the same virtual
+environment:
 
 ```bash
 python3 -m venv .venv
@@ -31,13 +42,15 @@ python -m pip install -e .
 python -m pip install ./examples/desktop-plugin
 ```
 
-The interpreter running Tongs discovers installed entry points. Installing a
-provider into another virtual environment, pipx environment, or Python
-installation will not make it visible to that Tongs installation.
+tongs discovers entry points in the Python environment it runs from. A provider
+installed into another virtual environment, pipx environment or Python
+installation is not visible to it. If you installed tongs with pipx, use
+`pipx inject tongs ./examples/desktop-plugin` instead (add `--editable` during
+development). With uv, use `uv tool install tongs --with ./examples/desktop-plugin`
+(or `--with-editable`), and keep any extras you already use.
 
-Ordinary plugin installation does not require Tongs development dependencies.
-To run the example's tests in a clean environment, install the optional Tongs
-test dependencies from the repository root first:
+Installing a plugin does not need the tongs development dependencies. To run
+the example's tests, install them first, from the repository root:
 
 ```bash
 python -m pip install -e ".[dev]"
@@ -46,14 +59,15 @@ python -m pytest -q examples/desktop-plugin/tests
 node --test examples/desktop-plugin/tests/test_dashboard_module.mjs
 ```
 
-The Python test exercises its manifest, lifecycle, call, event, and terminal
-import boundary. The Node test uses a mocked DOM and host API to exercise module
-mounting and cleanup. It is not native Electron integration evidence.
+The Python test covers the manifest, lifecycle, calls, events and the
+separation from the terminal entry point. The Node test uses a mocked DOM and
+host API to check module mounting and cleanup. It does not run inside
+Electron.
 
 ## Register each surface explicitly
 
-A distribution that supports both interfaces declares the same canonical name
-in both groups. Each value is an independently imported class:
+A package that supports both apps declares the same canonical name in both
+groups. Each value is a class that is imported on its own:
 
 ```toml
 [project.entry-points."tongs.desktop_plugins"]
@@ -63,10 +77,10 @@ example_dashboard = "tongs_example_dashboard.desktop:ExampleDashboardProvider"
 example_dashboard = "tongs_example_dashboard.terminal:ExampleDashboardTerminalPlugin"
 ```
 
-Use only `tongs.plugins` for a terminal-only distribution. Use only
-`tongs.desktop_plugins` for a desktop-only distribution. Desktop discovery lists
-terminal-only entry-point names as `terminal_only` without importing or
-constructing their classes. Terminal discovery never loads the desktop group.
+Use only `tongs.plugins` for a terminal-only package, and only
+`tongs.desktop_plugins` for a desktop-only package. Desktop discovery lists a
+terminal-only name as `terminal_only` without importing or constructing its
+class. Terminal discovery never loads the desktop group.
 
 Plugins are enabled by default. The shared canonical name selects the plugin's
 configuration:
@@ -76,10 +90,10 @@ configuration:
 enabled = false
 ```
 
-Both registries check `enabled` before importing that surface. For a desktop
-provider, all remaining values in the table are validated as bounded JSON,
-frozen, and passed as `context.config`; the `enabled` key is removed. See the
-[terminal plugin guide](../guides/plugins.md) for the existing TUI API.
+Both registries check `enabled` before importing anything. For a desktop
+provider, the other values in the table are validated as bounded JSON, frozen
+and passed as `context.config`, without the `enabled` key. See
+[Terminal plugins](/extend/terminal-plugins/) for the terminal API.
 
 ## Implement the Python provider
 
@@ -168,11 +182,11 @@ The four required operations are:
 | `manifest()` | Returns one frozen `DesktopPluginManifest`. Discovery validates it before the provider starts. |
 | `start(context)` | Receives the plugin-scoped `DesktopPluginContext` once after successful discovery. |
 | `call(method, params, call_context)` | Handles a manifest-declared local method and returns JSON data. `params` is recursively frozen. |
-| `stop()` | Releases provider resources. It runs during sidecar shutdown, including after a start or call failure when the provider was constructed. |
+| `stop()` | Releases provider resources. It runs when the desktop app's Python process shuts down, including after a start or call failure when the provider was constructed. |
 
 Do not import the desktop provider from a terminal-only module. Keeping the
-entry-point modules independent preserves terminal startup when optional desktop
-dependencies or resources are unavailable.
+entry-point modules separate lets the terminal app start even when desktop
+dependencies or resources are missing.
 
 ## Declare the manifest
 
@@ -186,7 +200,7 @@ most 500 characters. Versions use PEP 440 syntax and are at most 100 characters.
 | Field | Purpose and validation |
 | --- | --- |
 | `plugin_id`, `title`, `version` | Stable provider identity and display metadata. |
-| `compatibility` | Manifest validation requires a positive integer `api_major`; discovery then rejects a manifest whose `api_major` does not exactly match the host's supported value. Optional `minimum_host_version` is a PEP 440 lower bound for Tongs. |
+| `compatibility` | Manifest validation requires a positive integer `api_major`; discovery then rejects a manifest whose `api_major` does not exactly match the host's supported value. Optional `minimum_host_version` is a PEP 440 lower bound for the tongs version. |
 | `modules` | At least one UI module. Each names one bundle, one module entry asset, and optional stylesheet assets from that same bundle. |
 | `asset_bundles` | Package resource roots and their declared assets and size limits. |
 | `navigation` | Navigation IDs and titles bound to declared module IDs. |
@@ -218,7 +232,7 @@ flows.
 ## Package modules, styles, and help
 
 Declare resources by importable Python package, resource root, and normalized
-relative path. Tongs resolves them with `importlib.resources`, validates them at
+relative path. tongs resolves them with `importlib.resources`, validates them at
 discovery, and later exposes only plugin-scoped opaque asset handles. It never
 accepts an arbitrary package or filesystem path from the renderer.
 
@@ -237,7 +251,7 @@ Supported resource kinds and extensions are:
 
 The default bundle limits are 1 MiB per file and 8 MiB total. A provider may
 declare lower limits or raise them up to the host caps of 8 MiB per file and
-32 MiB total. The total limit must be at least the per-file limit. Tongs rejects
+32 MiB total. The total limit must be at least the per-file limit. tongs rejects
 missing resources, symlinks in filesystem-backed resource paths, resources that
 escape the package root, duplicate normalized paths, unsupported extensions,
 and files that exceed the effective limits. Asset IDs are unique across the
@@ -284,7 +298,7 @@ queued as individual events. Consumers should refetch durable data after a
 refresh event instead of treating event delivery as a transaction log.
 
 Context data, call parameters, return values, event payloads, and focus metadata
-must be JSON values. Tongs freezes objects into read-only mappings and arrays
+must be JSON values. tongs freezes objects into read-only mappings and arrays
 into tuples. Each value is limited to 4,096 total items, nesting depth 16, and
 256 KiB UTF-8 per string or object key. Object keys must be strings and floating
 point values must be finite.
@@ -322,11 +336,11 @@ Default host deadlines are 10 seconds for `start()`, 30 seconds for `call()`,
 and 2 seconds for shutdown cleanup, including `stop()`. Calls require a unique
 active invocation ID. A timed-out call returns a retryable `call_timeout`
 diagnostic, signals cancellation, and retains its invocation ID until provider
-code actually exits. During shutdown, Tongs signals lifecycle and call
+code actually exits. During shutdown, tongs signals lifecycle and call
 cancellation, cancels pending work, awaits bounded cleanup, and rejects new
 calls. An exception, invalid JSON return, or timeout produces a typed call error
 while the provider remains available for later calls. Provider code that
 suppresses task cancellation is detached after the call deadline and remains
 tracked for cleanup. Start, stop, or cleanup failure marks the provider
-`failed`. The core desktop application and other plugins continue operating or
-shutting down.
+`failed`. The desktop app and the other plugins keep running, or keep shutting
+down.

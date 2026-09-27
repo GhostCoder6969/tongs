@@ -1,0 +1,211 @@
+---
+title: Install and sign in
+description: "Install tongs with pipx, uv or pip, then sign in with the gh and glab CLIs."
+eyebrow: install
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+tongs is a terminal inbox for code review across GitHub and GitLab. It calls
+GitHub pull requests and GitLab merge requests reviews. This page installs it
+and connects it to your forge accounts. [First run](/start/first-run/) covers
+what happens when you start it.
+
+## Requirements
+
+- **Python 3.12** or newer.
+- **A credential for each forge you use.** The easiest source is the forge's
+  own CLI: [`gh`](https://cli.github.com) for GitHub and
+  [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab. You only need the
+  CLI for the forges you review on. Without a CLI, tongs can read a token from
+  `~/.netrc` or the system keyring instead.
+
+tongs needs no compiler and no system libraries of its own.
+
+## Install
+
+<Tabs>
+
+<TabItem label="pipx (recommended)">
+
+```bash
+pipx install tongs
+```
+
+pipx installs tongs in its own virtual environment and puts the `tongs`
+command on your `PATH`.
+
+</TabItem>
+
+<TabItem label="uv">
+
+```bash
+uv tool install tongs
+```
+
+This is a persistent install, like pipx. To try tongs without installing it,
+run it in a temporary environment:
+
+```bash
+uvx tongs
+```
+
+</TabItem>
+
+<TabItem label="pip">
+
+```bash
+pip install tongs
+```
+
+</TabItem>
+
+<TabItem label="From source">
+
+```bash
+git clone https://github.com/andre-motta/tongs.git
+cd tongs
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+With uv, create the environment with `uv venv --python 3.12` and use
+`uv pip install -e ".[dev]"` after activating it.
+
+</TabItem>
+
+</Tabs>
+
+### Optional extras
+
+Three optional extras add features:
+
+- `mcp`: the MCP server for AI assistants, covered on the
+  [MCP server](/extend/mcp/) page.
+- `keyring`: the system keyring as a credential source.
+- `fleet`: installs the claude-fleet-monitor plugin, configured under
+  `[plugins.fleet]`.
+
+Name every extra you want in one command. On a new install:
+
+```bash
+pipx install "tongs[mcp,keyring]"
+```
+
+If tongs is already installed with pipx, add `--force`. It reinstalls tongs
+with exactly the extras in the brackets, so list the ones you already use too:
+
+```bash
+pipx install --force "tongs[mcp,keyring]"
+```
+
+With uv, run `uv tool install "tongs[mcp,keyring]"`, adding `--reinstall` if uv
+reports that tongs is already installed. With pip, run
+`pip install "tongs[mcp,keyring]"` in the environment you use for tongs.
+
+:::note[Desktop app]
+The desktop app is an optional beta that runs on the same core. Install the
+terminal app first, then follow [Install the desktop app](/desktop/installation/).
+:::
+
+## Sign in
+
+tongs never stores your tokens. It asks for one at runtime, in this order:
+
+1. The forge CLI: `gh auth token` for GitHub, `glab config get token` for
+   GitLab.
+2. `~/.netrc`.
+3. The system keyring, if the `keyring` extra is installed.
+
+Sign in to the CLI once and tongs picks up the token from then on.
+
+### GitHub
+
+```bash
+gh auth login
+```
+
+Follow the prompts. When `gh auth token` prints a token, tongs can use it.
+
+### GitLab
+
+```bash
+glab auth login
+```
+
+For a self-hosted instance, pass its hostname:
+
+```bash
+glab auth login --hostname gitlab.example.com
+```
+
+### Fallback: .netrc
+
+Without a CLI login, tongs reads the `password` field of the matching
+`~/.netrc` entry:
+
+```text title="~/.netrc"
+machine github.com
+  login your-username
+  password ghp_your_token
+
+machine gitlab.com
+  login your-username
+  password glpat-your_token
+```
+
+The file must be readable only by you. tongs refuses it otherwise:
+
+```bash
+chmod 600 ~/.netrc
+```
+
+### Fallback: system keyring
+
+With the `keyring` extra installed, tongs looks up a token stored under the
+service name `tongs` and the forge hostname. pipx and uv expose only the tongs
+commands, not `keyring`, so store the token with the keyring CLI run in a
+temporary environment:
+
+```bash
+pipx run keyring set tongs github.com   # prompts for the GitHub token
+pipx run keyring set tongs gitlab.com   # prompts for the GitLab token
+```
+
+`uvx keyring set tongs github.com` does the same with uv. Either way the token
+lands in the same system keyring that tongs reads: Secret Service on Linux, the
+macOS Keychain, or the Windows Credential Locker. With a plain pip install, the
+`keyring` command is already in the environment you installed tongs into.
+
+## Self-hosted forges
+
+tongs recognizes github.com and gitlab.com on its own. For GitHub Enterprise or
+a self-hosted GitLab, add a `[hosts.*]` section so tongs knows which forge the
+hostname runs:
+
+```toml title="~/.config/tongs/config.toml"
+[hosts.work-gitlab]
+hostname = "gitlab.example.com"
+forge_type = "gitlab"
+
+[hosts.work-github]
+hostname = "github.corp.com"
+forge_type = "github"
+```
+
+Sign the CLI in to that hostname first, for example with
+`gh auth login --hostname github.corp.com`. The config file lives at
+`~/.config/tongs/config.toml` on Linux, or the platform config directory
+elsewhere. The [Configuration reference](/reference/configuration/) lists every
+setting.
+
+## If sign-in fails
+
+- Run `gh auth status` or `glab auth status` to check the CLI session.
+- For a self-hosted instance, the `hostname` in `[hosts.*]` must match the
+  hostname you passed to `glab auth login --hostname` or
+  `gh auth login --hostname` exactly.
+- When no source has a token, tongs names the host and the command to run.
+
+Next: [First run](/start/first-run/).
