@@ -1168,6 +1168,9 @@ class MRDetailScreen(Screen):
                 return
             self._finish_mutation(intent)
             self.notify("[green]Job cancelled[/]")
+            panel = self.query_one("#pipeline-panel", PipelinePanel)
+            if panel._current_pipeline is not None:
+                self._load_pipeline_jobs(panel._current_pipeline)
         except asyncio.CancelledError:
             self._cancel_mutation(intent)
             raise
@@ -1203,6 +1206,9 @@ class MRDetailScreen(Screen):
                 return
             self._finish_mutation(intent)
             self.notify("[green]Job retried[/]")
+            panel = self.query_one("#pipeline-panel", PipelinePanel)
+            if panel._current_pipeline is not None:
+                self._load_pipeline_jobs(panel._current_pipeline)
         except asyncio.CancelledError:
             self._cancel_mutation(intent)
             raise
@@ -2015,3 +2021,14 @@ class MRDetailScreen(Screen):
         self._cached_diff_files = None
         self._displayed_diff_revision = None
         self._load_detail()
+        tabbed = self.query_one(TabbedContent)
+        if tabbed.active == "pipeline":
+            panel = self.query_one("#pipeline-panel", PipelinePanel)
+            pipeline = panel._current_pipeline
+            job = panel._current_job
+            if panel._view_level == 2 and pipeline is not None and job is not None:
+                self._load_job_log(job, pipeline)
+            elif panel._view_level == 1 and pipeline is not None:
+                self._load_pipeline_jobs(pipeline)
+            else:
+                self._on_tab_switch("pipeline")
