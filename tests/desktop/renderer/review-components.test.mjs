@@ -751,7 +751,7 @@ test("known quick rejection renders one actionable alert", async () => {
   const view = renderFeature(bridge, review);
   fireEvent.click(await view.findByRole("button", { name: "Close" }));
   fireEvent.click(view.getByRole("button", { name: "Confirm Close" }));
-  const message = "The review changed remotely. Refresh it before choosing another action.";
+  const message = "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge conflicts.";
   assert.equal((await view.findAllByText(message)).length, 1);
   assert.equal(view.getAllByRole("alert").length, 1);
   assert.equal(view.queryByText(/raw backend text/), null);
