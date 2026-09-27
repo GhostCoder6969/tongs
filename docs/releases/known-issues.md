@@ -21,7 +21,7 @@ launch problems that have a workaround today.
 | [#244](https://github.com/andre-motta/tongs/issues/244) | v1.0.1 | With more than 64 repositories found, every inbox tab fails with "Too many desktop requests are pending". |
 | [#184](https://github.com/andre-motta/tongs/issues/184) | v1.1.0 | An empty optional forge field, such as a GitHub job with no workflow name, makes the pipeline, job, commit or review view fail to load. |
 | [#183](https://github.com/andre-motta/tongs/issues/183) | v1.1.0 | ++f2++ on the job log does nothing unless a log control has focus. |
-| [#250](https://github.com/andre-motta/tongs/issues/250) | v1.1.0 | In the light theme, diff hunk headers keep a dark background. |
+| [#250](https://github.com/andre-motta/tongs/issues/250) | Fixed for the next release | In the light theme, diff hunk headers keep a dark background. |
 
 ## Review submission
 
@@ -36,7 +36,7 @@ launch problems that have a workaround today.
 
 | Issue | Milestone | What you will see |
 |---|---|---|
-| [#186](https://github.com/andre-motta/tongs/issues/186) | Fixed on main | tongs resolves each forge token once per session, so it does not pick up a rotated or expired token. Restart tongs after you rotate a token. The fix retries once with a fresh token after a rejected request and ships in the next release. |
+| [#186](https://github.com/andre-motta/tongs/issues/186) | Fixed for the next release | tongs resolves each forge token once per session, so it does not pick up a rotated or expired token. Restart tongs after you rotate a token. The fix retries once with a fresh token after a rejected request and ships in the next release. |
 
 ## Terminal app
 
