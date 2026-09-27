@@ -150,7 +150,9 @@ the authoritative test or proof report is absent or failed.
 
 On a Linux host with a user systemd manager and cgroup v2, this checkout-relative
 example creates a unique service, checks the effective limits from inside it, and
-returns the guarded command's status:
+returns the guarded command's status. `systemd-run` expands `${...}` in the
+command line before `/bin/sh` receives it, so shell parameter expansions in the
+inline script must escape the leading dollar as `$$`.
 
 ```bash
 unit="tongs-node-${PPID}-${RANDOM}-$(date +%s)"
@@ -166,7 +168,7 @@ systemd-run --user --unit="$unit" --wait --collect \
   /usr/bin/timeout --signal=TERM --kill-after=15s 20m \
   /bin/sh -eu -c '
     cgroup=$(awk -F: '"'"'$1 == "0" { print $3 }'"'"' /proc/self/cgroup)
-    root="/sys/fs/cgroup${cgroup}"
+    root="/sys/fs/cgroup$${cgroup}"
     test "$(cat "$root/memory.max")" = 1073741824
     test "$(cat "$root/memory.swap.max")" = 0
     test "$(cat "$root/pids.max")" = 64
