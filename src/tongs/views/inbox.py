@@ -85,6 +85,8 @@ class InboxScreen(Screen):
         if not self.app.repos or scoped_repo_removed:
             for table in self.query(MRTable):
                 table.clear()
+        if not self.scoped_repo and not self.app.repos:
+            self.notify("[dim]No forges discovered yet[/]")
         self.action_focus_tab("reviews")
 
     def action_refresh(self) -> None:
@@ -160,8 +162,6 @@ class InboxScreen(Screen):
         try:
             if not self.scoped_repo and not self.app.repos:
                 table.clear()
-                if self.app.repository_generation > 0:
-                    self.notify("[dim]No forges discovered yet[/]")
                 return
             await self._load_page(table, ReviewScope.MY_REVIEWS, "Reviews")
         finally:
