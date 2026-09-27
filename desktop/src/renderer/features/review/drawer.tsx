@@ -1638,25 +1638,35 @@ function SubmissionProgress({
       )}
       {progress.outcome === "unknown" && (
         <>
-          <Notice kind="warning">
-            Retry remaining can repeat an unconfirmed remote write. Confirmed
-            receipt steps stay excluded. Mark submitted records your assertion
-            after you inspect the forge; it is not a verified receipt.
-          </Notice>
+          {progress.unknown_step_ids.length > 0 && (
+            <Notice kind="warning">
+              Retry remaining can repeat an unconfirmed remote write. Confirmed
+              receipt steps stay excluded. Mark submitted records your assertion
+              after you inspect the forge; it is not a verified receipt.
+            </Notice>
+          )}
           <div className="review-workflow-row">
-            <button
-              className="button"
-              disabled={pending}
-              onClick={() =>
+            {(progress.unknown_step_ids.length > 0 ||
+              progress.completed_step_ids.length > 0) && (
+              <button
+                className="button"
+                disabled={pending}
+                onClick={() => {
+                  if (progress.unknown_step_ids.length === 0) {
+                    reconcile("retry_remaining");
+                    return;
+                  }
+                  confirmation === "reconcile:retry_remaining"
+                    ? reconcile("retry_remaining")
+                    : setConfirmation("reconcile:retry_remaining");
+                }}
+              >
+                {progress.unknown_step_ids.length > 0 &&
                 confirmation === "reconcile:retry_remaining"
-                  ? reconcile("retry_remaining")
-                  : setConfirmation("reconcile:retry_remaining")
-              }
-            >
-              {confirmation === "reconcile:retry_remaining"
-                ? "Confirm possible repeat of remaining writes"
-                : "Retry only remaining steps"}
-            </button>
+                  ? "Confirm possible repeat of remaining writes"
+                  : "Retry only remaining steps"}
+              </button>
+            )}
             <button
               className="button button-secondary"
               disabled={pending}
@@ -1664,19 +1674,21 @@ function SubmissionProgress({
             >
               Return draft to editing
             </button>
-            <button
-              className="button button-secondary"
-              disabled={pending}
-              onClick={() =>
-                confirmation === "reconcile:mark_submitted"
-                  ? reconcile("mark_submitted")
-                  : setConfirmation("reconcile:mark_submitted")
-              }
-            >
-              {confirmation === "reconcile:mark_submitted"
-                ? "Confirm inspected remote is submitted"
-                : "Mark submitted"}
-            </button>
+            {progress.unknown_step_ids.length > 0 && (
+              <button
+                className="button button-secondary"
+                disabled={pending}
+                onClick={() =>
+                  confirmation === "reconcile:mark_submitted"
+                    ? reconcile("mark_submitted")
+                    : setConfirmation("reconcile:mark_submitted")
+                }
+              >
+                {confirmation === "reconcile:mark_submitted"
+                  ? "Confirm inspected remote is submitted"
+                  : "Mark submitted"}
+              </button>
+            )}
           </div>
         </>
       )}
