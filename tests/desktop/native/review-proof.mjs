@@ -75,9 +75,9 @@ import { SidecarTransport } from "../../../desktop/dist/src/main/sidecar.js";
  *   by #181: "Merge" / "Close" / "Reopen" / "Remove approval" ->
  *   "Confirm {label}"; a rejected action reports through
  *   `role="alert"` inside `.review-workflow-shell` with the message from
- *   `desktop/src/shared/review.ts` `REVIEW_MUTATION_MESSAGES.conflict`,
- *   unchanged: "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge
- *   conflicts.""
+ *   `desktop/src/shared/review.ts` `REVIEW_MUTATION_MESSAGES.conflict`, with
+ *   the message "The forge refused this action: the review changed remotely or its branch conflicts with the target. Refresh, and check for merge
+ *   conflicts."
  * - Uncertainty acknowledgment (`review-detail/index.tsx` and
  *   `features/review/index.tsx`, unchanged): button "I inspected the forge;
  *   acknowledge uncertainty".
