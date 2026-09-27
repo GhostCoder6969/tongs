@@ -1,6 +1,10 @@
-# Contributing
+---
+title: Contributing
+description: "How to find an issue, run the tests and open a pull request for tongs."
+---
 
-Tongs is developed in the open at
+tongs is made by <a href="https://alustos.us/" rel="author">Andre Motta</a> and
+developed in the open at
 [github.com/andre-motta/tongs](https://github.com/andre-motta/tongs), and
 contributions of all sizes are welcome: bug reports, fixes, documentation, and
 new ideas. The full guide is
@@ -31,10 +35,21 @@ ruff format --check src/ tests/
 ```
 
 Tests mock all GitHub and GitLab traffic, so no account or token is needed.
-Desktop app work also needs Node.js 22.12 or newer; see
-[CONTRIBUTING.md](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md#desktop-changes)
-for the desktop build and tests. Documentation changes should pass
-`mkdocs build --strict`.
+
+Desktop app (beta) work also needs Node.js 22.12 or newer. See
+[Desktop changes](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md#desktop-changes)
+for the desktop build and tests.
+
+Documentation lives in `docs/` and builds with the Astro site in `site/`, which
+also needs Node.js 22.12 or newer. The build fails on a broken link or anchor:
+
+```bash
+npm ci --prefix site
+npm run build --prefix site
+```
+
+See [Documentation changes](https://github.com/andre-motta/tongs/blob/main/CONTRIBUTING.md#documentation-changes)
+for how to run it under a memory limit.
 
 ## Open a pull request
 
@@ -51,7 +66,7 @@ lists which paths run which checks. A maintainer reviews the change.
 
 Do not open a public issue for a vulnerability. Follow
 [SECURITY.md](https://github.com/andre-motta/tongs/blob/main/SECURITY.md), and see
-[Security and signing](reference/security.md) for the trust boundaries that the
+[Security and signing](/reference/security/) for the trust boundaries that the
 report scope depends on.
 
 ## Code of conduct

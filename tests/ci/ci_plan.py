@@ -177,7 +177,7 @@ RULES: tuple[Rule, ...] = (
         name="docs",
         patterns=(
             "docs/**",
-            "mkdocs.yml",
+            "site/**",
             ".agents/**",
             "*.md",
             ".github/ISSUE_TEMPLATE/**",

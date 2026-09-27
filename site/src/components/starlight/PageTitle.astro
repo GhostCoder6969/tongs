@@ -1,0 +1,36 @@
+---
+// PageTitle override: `$ docs / group / page` eyebrow from front matter (or
+// the sidebar), an optional "open with" key hint, the h1, and an optional lead.
+import { groupOf, groups, href } from '../../data/nav.mjs';
+import { renderKeyText } from '../../plugins/keys.mjs';
+
+const route = Astro.locals.starlightRoute;
+const data = route.entry.data as typeof route.entry.data & {
+  group?: string;
+  eyebrow?: string;
+  opens?: string;
+  lead?: string;
+};
+const found = data.group ? groups.find((g) => g.label.toLowerCase() === data.group!.toLowerCase()) : groupOf(route.id);
+const groupLabel = (data.group ?? found?.label)?.toLowerCase();
+const groupHref = found ? href(found.items[0].slug) : undefined;
+const page = data.eyebrow ?? route.id.split('/').filter(Boolean).pop() ?? '';
+---
+
+<div class="page-eyebrow" data-pagefind-ignore>
+  <span class="path">
+    <span class="ps" aria-hidden="true">$</span><span>docs</span>
+    {
+      groupLabel && (
+        <>
+          <span aria-hidden="true">/</span>
+          {groupHref ? <a href={groupHref}>{groupLabel}</a> : <span>{groupLabel}</span>}
+        </>
+      )
+    }
+    <span aria-hidden="true">/</span><span>{page}</span>
+  </span>
+  {data.opens && <span class="opens">open with <Fragment set:html={renderKeyText(data.opens)} /></span>}
+</div>
+<h1 id="_top">{data.title}</h1>
+{data.lead && <p class="lead">{data.lead}</p>}

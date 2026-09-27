@@ -1,0 +1,44 @@
+---
+// Custom 404 (Starlight's own is disabled with disable404Route).
+import Plain from '../layouts/Plain.astro';
+import { groups, href } from '../data/nav.mjs';
+
+const nav = groups.filter((g) => g.nav);
+---
+
+<Plain title="Page not found | tongs" description="This page does not exist on tongs.tools." noindex>
+  <main id="main">
+    <section class="lost" aria-labelledby="lost-title">
+      <div class="wrap">
+        <p class="eyebrow"><span class="ps" aria-hidden="true">$</span><span>tongs</span><span class="cmt"># 404</span></p>
+        <h1 id="lost-title">Nothing here to hold.</h1>
+        <p class="text">This page does not exist, or it moved when the docs were reorganized. Search the docs, or start from one of the five sections.</p>
+        <pre class="out" aria-hidden="true"><span class="ps">$ </span>ls <span id="lost-path">this-page</span>
+<span class="err">ls: cannot access: No such file or directory</span></pre>
+        <div class="ctas">
+          <a class="btn btn-primary" href="/getting-started/" data-search>Search the docs <span class="arrow" aria-hidden="true">/</span></a>
+          <a class="btn btn-quiet" href="/">Home</a>
+        </div>
+      </div>
+    </section>
+    <div class="wrap">
+      <nav class="routes" aria-label="Documentation groups">
+        <h2 class="sr-only">Documentation groups</h2>
+        {nav.map((g) => (
+          <div class="route">
+            <p class="dir">{g.dir}</p>
+            <h3><a href={href(g.items[0].slug)}>{g.label}</a>{g.badge && <span class="beta">{g.badge}</span>}</h3>
+            <p>{g.blurb}</p>
+          </div>
+        ))}
+      </nav>
+    </div>
+    <div style="height: 96px"></div>
+  </main>
+  <script is:inline>
+    (function () {
+      var el = document.getElementById('lost-path');
+      if (el) el.textContent = location.pathname;
+    })();
+  </script>
+</Plain>

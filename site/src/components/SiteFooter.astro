@@ -1,0 +1,30 @@
+---
+import { footerColumns, site } from '../data/nav.mjs';
+---
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="brandcol">
+      <span class="wordmark" translate="no">tongs</span>
+      <p class="fine">Every forge. One place. A review inbox for GitHub and GitLab in your terminal. MIT licensed. No tracking, no analytics.</p>
+    </div>
+    {
+      footerColumns.map((col) => (
+        <div>
+          <h2>{col.title}</h2>
+          <ul>
+            {col.links.map((l) => (
+              <li>
+                <a href={l.href}>{l.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+    <div class="base">
+      <span>made by <a href={site.author.url} rel="author">{site.author.name}</a></span>
+      <span>{site.version}, released {site.released}</span>
+    </div>
+  </div>
+</footer>

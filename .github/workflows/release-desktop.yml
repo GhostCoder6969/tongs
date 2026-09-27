@@ -634,6 +634,7 @@ jobs:
         run: |
           printf 'RELEASE_ASSETS=%s/tongs-desktop-release-assets\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'RELEASE_EVIDENCE=%s/tongs-desktop-release-evidence\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'RELEASE_NOTES=%s/tongs-desktop-release-notes.md\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Require the exact tagged source and its release notes
         run: |
           set -euo pipefail
@@ -642,6 +643,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git rev-parse 'HEAD^{tree}')" = "${{ needs.candidate-archive.outputs.source-tree }}"
           test -s "docs/releases/$RELEASE_TAG.md"
+          # The notes are also a site page; drop its leading front matter
+          # block so the release body starts at the prose.
+          awk 'NR == 1 && $0 == "---" { fm = 1; next } fm && $0 == "---" { fm = 0; next } !fm' \
+            "docs/releases/$RELEASE_TAG.md" > "$RELEASE_NOTES"
+          test -s "$RELEASE_NOTES"
+          ! head -n 1 "$RELEASE_NOTES" | grep -qx -- '---'
       - name: Initialize an isolated release verification environment
         run: |
           "python${PYTHON_VERSION}" -I -m venv "$RUNNER_TEMP/tongs-candidate-venv"
@@ -701,7 +708,7 @@ jobs:
           --tag "$RELEASE_TAG"
           --source-commit "$GITHUB_SHA"
           --assets-dir "$RELEASE_ASSETS"
-          --notes "docs/releases/$RELEASE_TAG.md"
+          --notes "$RELEASE_NOTES"
           --report "$RELEASE_EVIDENCE/release-verification.json"
       - name: Refuse to touch a release that already exists
         run: >-
@@ -717,7 +724,7 @@ jobs:
           --draft
           --verify-tag
           --title "$RELEASE_TAG"
-          --notes-file "docs/releases/$RELEASE_TAG.md"
+          --notes-file "$RELEASE_NOTES"
           "$RELEASE_ASSETS"/*
       - name: Require the draft to carry exactly the assembled assets
         run: >-

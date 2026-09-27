@@ -1,13 +1,25 @@
-# Configuration
+---
+title: Configuration
+description: "Every tongs configuration key, its type, its default and what reads it."
+lead: tongs reads one TOML file. Every key is optional, and a missing file means every default applies.
+---
 
-tongs reads its configuration from `~/.config/tongs/config.toml` on Linux, or
-the platform-appropriate config directory via
-[platformdirs](https://pypi.org/project/platformdirs/). All settings are
-optional and have sensible defaults.
+## Where the file lives
 
-## Example config
+tongs finds its configuration directory with
+[platformdirs](https://pypi.org/project/platformdirs/).
 
-```toml
+| Platform | Path |
+|----------|------|
+| Linux | `~/.config/tongs/config.toml`, or `$XDG_CONFIG_HOME/tongs/config.toml` |
+| macOS | `~/Library/Application Support/tongs/config.toml` |
+| Windows | `%LOCALAPPDATA%\tongs\tongs\config.toml` |
+
+The terminal app, the desktop app and the MCP server all read the same file.
+
+## Example
+
+```toml title="~/.config/tongs/config.toml"
 [general]
 scan_root = "~/git"
 scan_depth = 5
@@ -33,100 +45,106 @@ hostname = "gitlab.example.com"
 forge_type = "gitlab"
 ```
 
----
-
 ## `[general]`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `scan_root` | string | `"~/git"` | Root directory to scan for git repositories. Supports `~` expansion. |
-| `scan_depth` | integer | `5` | Maximum directory depth to walk when searching for repos. |
+| `scan_root` | string | `"~/git"` | Directory to scan for git repositories. `~` is expanded. |
+| `scan_depth` | integer | `5` | How many directory levels to walk below `scan_root`. |
+
+`tongs --scan-root DIR` (or `-d DIR`) overrides `scan_root` for one run.
 
 ## `[editor]`
 
-Both keys are read only by the desktop workspace
-(`src/tongs/services/workspace_utilities.py:205` and `:219`). The terminal
-interface does not read them. Its ++f2++ handlers read `$VISUAL`, then
-`$EDITOR`, and otherwise use the first of `nvim`, `vim`, `vi` or `nano` found on
-`PATH` (`src/tongs/widgets/comment_editor.py:348-356`); the pipeline log viewer
-uses the same order and also accepts `less`
-(`src/tongs/widgets/pipeline_panel.py:480-489`). Setting `command` therefore
-does not change which editor ++f2++ opens in the terminal.
+:::note[Desktop only]
+The `[editor]` keys apply to the desktop app, which is a beta. The terminal
+app does not read them.
+:::
+
+In the terminal, ++f2++ opens `$VISUAL`, then `$EDITOR`, then the first of
+`nvim`, `vim`, `vi` or `nano` found on your `PATH`. The pipeline log viewer
+also accepts `less`. Setting `command` does not change what ++f2++ opens in
+the terminal.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `command` | string | `""` | Editor command the desktop workspace starts for external editing. When empty, the desktop workspace falls back to `$VISUAL`, then `$EDITOR`. |
-| `external_editor_enabled` | boolean | `true` | Whether the desktop workspace offers external editing. When `false`, the desktop workspace reports external editor access as disabled. |
+| `command` | string | `""` | The editor command the desktop app starts for external editing. When empty, it uses `$VISUAL`, then `$EDITOR`. |
+| `external_editor_enabled` | boolean | `true` | Whether the desktop app offers external editing. When `false`, it reports external editor access as disabled. |
 
-!!! warning "Unreleased feature"
+The desktop app appends the path of a private log export to the command and
+starts it without a shell. Use an editor that opens a window and waits, such as
+`code --wait` or `kate --block`. Known terminal-only editors, such as `vim`,
+`nano` or `less`, are reported as unsupported, because they cannot attach to
+the desktop window. A wrapper script must itself start a graphical editor and
+wait for it. The desktop app reports that the editor started separately from
+confirmation that it read the file.
 
-    The rest of this section describes the desktop workspace, which is part of
-    the unreleased desktop initiative. There is no public desktop artifact,
-    production tag, or release install to download yet. See
-    [Desktop installation](../desktop/installation.md).
-
-Tongs Desktop appends a private, bounded log export path to the configured editor
-command and starts it without a shell. Configure a wait-capable graphical editor,
-for example `code --wait` or `kate --block`. Known terminal-only editor commands are
-reported as unsupported because they cannot attach to the desktop window. Wrapper
-commands must themselves start a suitable graphical editor and wait for it. If the
-editor process starts, Tongs reports that start separately from confirmation that
-the editor read the file.
-
-While the editor process runs, Tongs keeps the private export descriptor open so
-live cleanup can remove only that exact file. After 23 hours, the desktop process
-closes its descriptor and leaves the export and reservation in place. A later
-editor export attempt can reclaim the exact private tokenized export once its
-24-hour stale lease has elapsed. This scheduling assumes the desktop event loop
-resumes normally after system sleep. Closing Tongs never terminates the editor.
+While the editor runs, the desktop app keeps the export open so that cleanup
+removes only that exact file. After 23 hours it lets go and leaves the export in
+place. A later export can reclaim it once 24 hours have passed. This timing
+assumes the app resumes normally after the computer sleeps. Closing the
+desktop app never closes the editor.
 
 ## `[ui]`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `ascii_mode` | boolean | `false` | Use ASCII-only characters for borders and indicators. Enable this for minimal terminals that do not render Unicode box-drawing characters. |
+| `ascii_mode` | boolean | `false` | Show the inbox's CI status as ASCII labels, such as `OK` and `FAIL`, instead of Unicode symbols. Turn it on for terminals that do not render those symbols. |
 
-### Keys accepted but not used
+### Keys that are read but have no effect
 
-`theme`, `diff_style` and `show_draft_mrs` are still parsed and stored on the
-loaded configuration (`src/tongs/config.py:38-40`, read from the file at
-`:100-102`), so a `config.toml` that sets them keeps loading without error.
-No code reads the stored values, so setting these keys currently has no effect.
-They are listed here rather than dropped from the reference so that an existing
-configuration file that sets them is not mistaken for a broken one.
+`theme`, `diff_style` and `show_draft_mrs` are still accepted, so a file that
+sets them keeps loading without an error. Nothing uses their values.
 
-| Key | Type | Default | What it does today |
+| Key | Type | Default | What happens today |
 |-----|------|---------|--------------------|
-| `theme` | string | `"monokai"` | Nothing. Diff syntax highlighting always uses the `monokai` Pygments style, which is written directly into the diff panel (`src/tongs/widgets/diff_panel.py:1112` and `:1274`). |
-| `diff_style` | string | `"unified"` | Nothing. Unified and split rendering is chosen at runtime with the `v` key in the diff view (`src/tongs/widgets/diff_panel.py:1374`), and the choice is not persisted. |
-| `show_draft_mrs` | boolean | `true` | Nothing. No code filters the inbox by draft state, so draft merge requests are always listed. They are marked `D` in the inbox table (`src/tongs/widgets/mr_table.py:67`) and `DRAFT` in the MR detail header (`src/tongs/views/mr_detail.py:165`). |
+| `theme` | string | `"monokai"` | Nothing. Diff syntax highlighting always uses the `monokai` style. |
+| `diff_style` | string | `"unified"` | Nothing. Press ++v++ in the diff viewer to switch between unified and split. The choice is not saved. |
+| `show_draft_mrs` | boolean | `true` | Nothing. Draft MRs are always listed. The inbox marks them `D` and MR detail shows `DRAFT`. |
 
 ## `[cache]`
 
+tongs keeps forge responses in a local SQLite database, so that returning to a
+screen does not wait on the network.
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mr_list_ttl` | integer | `60` | Time-to-live in seconds for cached MR list data. |
-| `diff_ttl` | integer | `300` | Time-to-live in seconds for cached diff data. |
-| `max_size_mb` | integer | `100` | Maximum cache size in megabytes. |
+| `mr_list_ttl` | integer | `60` | How long, in seconds, a cached list of MRs stays fresh. |
+| `diff_ttl` | integer | `300` | How long, in seconds, a cached diff stays fresh. |
+| `max_size_mb` | integer | `100` | The size limit of the cache database, in megabytes. |
+
+- **What is cached.** MR lists and diffs. Job logs are never cached. Reads that
+  check a review's current revision always go to the forge.
+- **When it refreshes.** An entry older than its time-to-live is fetched again.
+  Approving, merging, commenting or submitting a review clears the affected
+  entries, so the next read is fresh.
+- **When it is full.** When the stored entries pass `max_size_mb`, tongs
+  removes the least recently used quarter.
+- **Where it lives.** `cache.db` in the platform cache directory:
+  `~/.cache/tongs/` on Linux, `~/Library/Caches/tongs/` on macOS and
+  `%LOCALAPPDATA%\tongs\tongs\Cache\` on Windows. The directory is private to
+  your user, and the file is created with mode `0600`.
+- **Clearing it.** Run **Clear Cache** from the command palette (++ctrl+p++),
+  or use **Clear cache** in the desktop app. Clearing removes cached responses
+  only. It never touches your review drafts.
 
 ## `[concurrency]`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `max_parallel` | integer | `8` | Maximum number of parallel API requests when fetching MR data. |
-| `request_timeout` | integer | `30` | HTTP request timeout in seconds. |
+| `max_parallel` | integer | `8` | The most forge requests tongs runs at once. It must be greater than zero. |
+| `request_timeout` | integer | `30` | The HTTP request timeout, in seconds. |
 
-## `[hosts.*]`
+## `[hosts.<name>]`
 
-Define self-hosted forge instances. Each entry adds a hostname that tongs
-recognizes when scanning git remotes.
+`github.com` and `gitlab.com` work without configuration. Add a table for each
+self-hosted instance, so tongs recognizes its remotes when it scans your
+repositories. The table name is your own label.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `hostname` | string | (required) | The hostname of the self-hosted instance (e.g., `gitlab.example.com`). |
-| `forge_type` | string | `""` | Either `"gitlab"` or `"github"`. |
-
-You can define multiple hosts:
+| `hostname` | string | (required) | The instance's hostname, for example `gitlab.example.com`. |
+| `forge_type` | string | `""` | `"gitlab"` or `"github"`. A host with any other value is ignored. |
 
 ```toml
 [hosts.work-gitlab]
@@ -138,45 +156,39 @@ hostname = "github.corp.com"
 forge_type = "github"
 ```
 
-!!! important
-    You must authenticate the `glab` or `gh` CLI against each self-hosted
-    hostname before tongs can access it:
+:::caution[Sign in to each host]
+tongs uses the credentials of the forge CLI. Sign in `glab` or `gh` against
+each self-hosted hostname:
 
-    ```bash
-    glab auth login --hostname gitlab.example.com
-    gh auth login --hostname github.corp.com
-    ```
+```bash
+glab auth login --hostname gitlab.example.com
+gh auth login --hostname github.corp.com
+```
 
-    Alternatively, if you have the optional `keyring` package installed, you can
-    store tokens in your system keyring:
+A `~/.netrc` entry, or a token in the system keyring, also works. For the
+keyring, install tongs with the `keyring` extra (see
+[Install and sign in](/getting-started/#optional-extras)), then store the token
+under the service name `tongs`:
 
-    ```bash
-    pip install keyring
-    keyring set tongs gitlab.example.com    # paste your token when prompted
-    ```
+```bash
+# prompts for the token
+pipx run keyring set tongs gitlab.example.com
+```
 
-## `[plugins.*]`
+See [Credentials](/reference/security/#credentials) for the order tongs
+tries them in.
+:::
 
-Plugin-specific configuration. Each plugin uses its own sub-table with
-plugin-defined keys.
+## `[plugins.<name>]`
+
+Each plugin reads its own table. The keys are defined by the plugin.
 
 ```toml
 [plugins.fleet]
 monitor_interval = 30
 ```
 
-Plugin configuration is passed through to the plugin as a dictionary. See each
-plugin's documentation for available keys.
-
----
-
-## Config file location
-
-tongs uses [platformdirs](https://pypi.org/project/platformdirs/) to determine
-the config directory:
-
-| Platform | Path |
-|----------|------|
-| Linux | `~/.config/tongs/config.toml` |
-| macOS | `~/Library/Application Support/tongs/config.toml` |
-| Windows | `%APPDATA%\tongs\config.toml` |
+tongs passes the table to the plugin as a dictionary. One key is reserved:
+`enabled = false` stops tongs from loading that plugin at all. See
+[Terminal plugins](/extend/terminal-plugins/) and
+[Desktop plugin providers](/extend/desktop-providers/).

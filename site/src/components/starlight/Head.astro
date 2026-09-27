@@ -1,0 +1,17 @@
+---
+import Default from '@astrojs/starlight/components/Head.astro';
+import Fonts from '../Fonts.astro';
+import BrandMeta from '../BrandMeta.astro';
+
+// Without public/og-image.png there is no large image to show: use the small card.
+if (!import.meta.env.TONGS_HAS_OG) {
+  for (const e of Astro.locals.starlightRoute.head) {
+    if (e.attrs?.name === 'twitter:card') e.attrs.content = 'summary';
+  }
+}
+---
+
+<Default />
+<Fonts />
+<BrandMeta />
+<noscript><style>site-search, starlight-theme-select, .theme-btn { display: none !important; }</style></noscript>

@@ -1,0 +1,32 @@
+---
+// Social and icon tags shared by the homepage and the docs Head override.
+// favicon.svg, favicon.ico (16/32/48), apple-touch-icon.png and the icon-*.png
+// files are copied unchanged from the brand kit (export/brand/).
+// PLACEHOLDER brand kit: og-image.png (1200x630) is not in the kit yet. The
+// og:image and twitter:image tags render only when public/og-image.png exists
+// at build time (TONGS_HAS_OG in astro.config.mjs); copy the file in and rebuild.
+interface Props {
+  withFavicon?: boolean;
+}
+const { withFavicon = false } = Astro.props;
+const og = new URL('/og-image.png', Astro.site ?? 'https://www.tongs.tools').href;
+---
+
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#17171F" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#F2EFE9" media="(prefers-color-scheme: light)" />
+{
+  import.meta.env.TONGS_HAS_OG && (
+    <>
+      <meta property="og:image" content={og} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content="tongs: every forge, one place." />
+      <meta name="twitter:image" content={og} />
+    </>
+  )
+}
+<link rel="icon" href="/favicon.ico" sizes="48x48" />
+{withFavicon && <link rel="icon" href="/favicon.svg" type="image/svg+xml" />}
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />

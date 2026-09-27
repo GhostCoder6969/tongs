@@ -1,0 +1,35 @@
+---
+// Footer override: edit link and last-updated date, both taken from the real
+// file under docs/ (Starlight's own git lookup cannot follow the
+// src/content/docs symlink), then pagination. The shared site footer is added
+// full width by the PageFrame wrapper.
+import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { dirname } from 'node:path';
+import Pagination from '@astrojs/starlight/components/Pagination.astro';
+import { site } from '../../data/nav.mjs';
+
+const { entry } = Astro.locals.starlightRoute;
+const rel = (entry.filePath ?? '').replace(/^.*?src\/content\/docs\//, '');
+const editUrl = rel ? `${site.repo}/edit/main/docs/${rel}` : undefined;
+
+let updated = '';
+try {
+  const real = realpathSync(entry.filePath ?? '');
+  updated = execFileSync('git', ['log', '-1', '--format=%cs', '--', real], {
+    cwd: dirname(real),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
+} catch {
+  updated = '';
+}
+---
+
+<footer class="doc-foot">
+  <div class="page-meta">
+    {editUrl && <a href={editUrl}>Edit this page on GitHub</a>}
+    {updated && <span>last updated <time datetime={updated}>{updated}</time></span>}
+  </div>
+  <Pagination />
+</footer>

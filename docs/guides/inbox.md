@@ -1,62 +1,84 @@
-# Inbox
+---
+title: Inbox
+description: "Open pull requests and merge requests from GitHub and GitLab in one list, found from the repositories on your disk."
+---
 
-The inbox is the first screen you see when tongs launches. It shows open merge
-requests and pull requests from every repo under your scan root, pulled from both
-GitHub and GitLab in a single view.
+The inbox is the first screen tongs shows. It lists open pull requests and
+merge requests from GitHub and GitLab in one table. tongs calls both of them
+reviews.
 
 ## How repo discovery works
 
-On startup, tongs walks your scan root directory (default `~/git`) up to
-`scan_depth` levels deep. For each directory that contains a `.git` folder, it
-reads the git remotes and determines:
+On startup, tongs walks your scan root (`~/git` by default) up to `scan_depth`
+levels deep, five by default. Each directory with a `.git` folder is a
+repository. tongs skips hidden directories, symlinks and repositories nested
+inside another repository.
 
-- Whether the remote points to GitHub or GitLab (including self-hosted instances
-  configured in `[hosts.*]`)
-- The project namespace and name
+For each repository, tongs reads the git remotes and works out:
 
-Repos with unrecognized remotes (Bitbucket, local-only, etc.) are silently
-skipped.
+- whether the remote points to GitHub or GitLab. Hosts named in `[hosts.*]`
+  count, and so do hostnames that contain `github` or `gitlab`.
+- the project namespace and name.
+
+Repositories with no recognized remote, such as local-only or Bitbucket
+repositories, are skipped without a message. Set the scan root and depth in
+the [configuration](/reference/configuration/).
 
 ## Inbox tabs
 
-The inbox has three tabs, switched with number keys:
+The inbox has three tabs. Switch between them with the number keys.
 
 | Key | Tab | Shows |
 |-----|-----|-------|
-| ++1++ | My Reviews | MRs/PRs where you are a requested reviewer |
-| ++2++ | My MRs | MRs/PRs you authored |
-| ++3++ | All Open | Every open MR/PR across all discovered repos |
+| ++1++ | My Reviews | Reviews where you are a requested reviewer |
+| ++2++ | My MRs | Reviews you authored |
+| ++3++ | All Open | Every open review in the discovered repositories |
 
-Each tab fetches data lazily and in parallel across repos.
+My Reviews and My MRs ask each forge host that your repositories point to.
+All Open lists the open reviews of each discovered repository. A tab loads the
+first time you open it, and tongs queries repositories and hosts in parallel.
+If one host fails, the others still load and tongs names the host that was
+skipped.
 
-## The MR list
+## The review list
 
-Each row in the inbox shows:
+Each row shows these columns:
 
-- **Forge indicator** -- `GH` for GitHub, `GL` for GitLab
-- **Project name** -- namespace/repo
-- **MR title** and number
-- **CI status** -- pass, fail, running, or pending
-- **Comment count**
-- **Author** and **last updated** timestamp
+| Column | Shows |
+|--------|-------|
+| CI | Pipeline status: passed, failed, running, pending, canceled or skipped |
+| # | Pull request or merge request number |
+| Title | Title, with a dim `D` in front of draft reviews |
+| Author | Author's username |
+| Repo | Project path, such as `acme/api` |
+| Updated | Time since the last update, such as `3h ago` |
 
-Press ++s++ to cycle the sort order (updated, title, CI status, author).
+With `ascii_mode` on, the CI column shows `OK`, `FAIL`, `RUN`, `PEND`, `CANC`
+and `SKIP` instead of symbols.
 
-Press ++enter++ on any row to open the MR detail view.
+Press ++s++ to cycle the sort order: updated, title, CI status, author.
+Press ++enter++ on a row to open the review, and ++o++ to open it in your
+browser.
 
 ## Per-repo scoped inbox
 
-You can filter the inbox to a single project:
+Filter the inbox to a single project from the repo list.
 
-1. Press ++r++ to open the **repo list**
-2. Use ++slash++ to search repos by name
-3. Press ++f++ to cycle the forge filter (All / GH / GL)
-4. Press ++s++ to cycle the sort order (name / forge / host)
-5. Press ++enter++ on a repo to show only MRs from that project
+<figure class="shot"><a href="/media/repos.webp" aria-label="Open the full-size screenshot of the repo list"><div class="frame"><div class="bar" data-pagefind-ignore><span><b>tongs</b> &middot; repos</span><span class="meta"><span class="full">full size &#8599;</span></span></div><picture><source media="(max-width: 560px)" srcset="/media/repos-m.webp" width="500" height="452" /><img src="/media/repos.webp" width="760" height="452" loading="lazy" decoding="async" alt="The tongs repo list with GitHub and GitLab repositories sorted by forge."></picture></div></a><figcaption class="cap">demo data, cropped on small screens</figcaption></figure>
 
-Press ++r++ again to return to the full inbox.
+1. Press ++r++ to open the repo list.
+2. Press ++slash++ to filter repositories by name. ++escape++ closes the
+   filter and clears it.
+3. Press ++f++ to cycle the forge filter: All, GH, GL.
+4. Press ++s++ to cycle the sort order: name, forge, host.
+5. Press ++enter++ on a repository to open an inbox for that project only.
+
+The scoped inbox has the same three tabs and hides the Repo column. Press ++r++
+or ++escape++ to go back to the repo list, and ++escape++ again to return to
+the full inbox.
 
 ## Refreshing
 
-Press ++ctrl+r++ to reload the current view. tongs re-fetches MR data from the
-forge APIs, respecting the cache TTL settings in your configuration.
+Press ++ctrl+r++ to reload the current tab. All Open reads through the local
+cache, so a reload within `mr_list_ttl` seconds (60 by default) can return the
+cached list. In the repo list, ++ctrl+r++ scans the scan root again.

@@ -79,13 +79,20 @@ than a gigabyte of memory while it formats the error.
 
 ### Documentation changes
 
-Docs live in `docs/` and are published to [tongs.tools](https://www.tongs.tools).
-A pull request that changes them runs the docs check, which builds the site
-strictly and lints the Markdown. Build it locally first:
+Docs live in `docs/` and are published to [tongs.tools](https://www.tongs.tools)
+by the Astro site in `site/`. A pull request that changes them runs the docs
+check, which builds the site and lints the Markdown. Building it needs Node.js
+22.12 or newer, and the build fails on any broken link or anchor. Build it
+locally first:
 
 ```bash
-mkdocs build --strict
+npm ci --prefix site
+npm run build --prefix site
 ```
+
+The pages land in `site/dist`. CI runs the same build on pull requests that
+touch the docs. Like the desktop suite, it is best run under the memory limit in
+the [testing guide](.agents/testing/README.md#bounded-local-node-procedure).
 
 ## Code style
 
@@ -153,8 +160,8 @@ and coding assistants. [AGENTS.md](AGENTS.md) gives the overview.
 ### Writing a plugin
 
 Terminal plugins use the `tongs.plugins` entry point and desktop plugins use
-`tongs.desktop_plugins`. See the [plugin guide](docs/guides/plugins.md), the
-[desktop provider guide](docs/plugins/provider.md), and the
+`tongs.desktop_plugins`. See the [plugin guide](docs/extend/terminal-plugins.md), the
+[desktop provider guide](docs/extend/desktop-providers.md), and the
 [desktop example](examples/desktop-plugin/README.md).
 
 ## Maintainers

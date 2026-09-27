@@ -1,15 +1,17 @@
-# Security and signing
+---
+title: Security and signing
+description: "What tongs trusts, how it handles forge credentials, and how the desktop installer verifies a release."
+lead: What tongs trusts, what it verifies, and what it does not protect against.
+---
 
-This page states what tongs actually trusts, what it verifies, and what it does
-not protect against. Report a vulnerability through
+Report a vulnerability through
 [SECURITY.md](https://github.com/andre-motta/tongs/blob/main/SECURITY.md); do not
 open a public issue.
 
 ## Credentials
 
-Tongs never stores forge tokens. `resolve_token()` in
-`src/tongs/forges/auth.py` resolves one lazily per host through a four-step
-cascade:
+tongs never stores forge tokens. It looks one up for each host when it first
+needs it, in this order (`resolve_token()` in `src/tongs/forges/auth.py`):
 
 1. The forge CLI credential store: `gh auth token` for GitHub, or
    `glab config get token --host <host>` for GitLab. Enterprise GitHub hosts add
@@ -22,18 +24,21 @@ cascade:
    backend fails, the step is skipped rather than fatal.
 4. A forge-specific `AuthError` naming the login command to run.
 
-Consequences:
+What follows from this:
 
-- Tongs writes no token to disk and puts no token in any tongs configuration
+- tongs writes no token to disk and puts no token in any tongs configuration
   file. When a token comes from the keyring, the keyring owns it, not tongs.
 - Login, logout, and refresh remain the responsibility of the CLI or keyring that
   holds the credential.
-- When a request gets a 401, tongs re-resolves the token once through the same
-  cascade and retries. For GitLab it first runs `glab auth status --hostname
+- From the release after 1.0.0, when a request gets a 401, tongs re-resolves
+  the token once through the same cascade and retries. For GitLab it first runs `glab auth status --hostname
   <host>`, which makes glab refresh and save an expired OAuth token. A second
-  401 is reported as an authentication error.
-- CLI credential reads use an argument vector with no shell, captured output, and
-  a five-second timeout.
+  401 is reported as an authentication error. In 1.0.0, restart tongs after
+  rotating a token; see [known issues](/releases/known-issues/#credentials)
+  (#186).
+- CLI credential reads run without a shell, capture their output, and time out
+  after five seconds. From the release after 1.0.0, the GitLab refresh check
+  times out after fifteen.
 - Tokens live only in process memory and the outgoing `Authorization` header.
   `redact_credentials()` in `src/tongs/errors.py` strips known GitLab and GitHub
   token prefixes and generic `Bearer` and `PRIVATE-TOKEN` values before errors are
@@ -41,7 +46,7 @@ Consequences:
 
 ## Plugins are trusted code
 
-Tongs loads plugins from two independent Python entry-point groups:
+tongs loads plugins from two independent Python entry-point groups:
 `tongs.plugins` for terminal `TongsPlugin` implementations, and
 `tongs.desktop_plugins` for desktop `DesktopPluginProvider` implementations with
 their packaged ESM, CSS, and help resources. A plugin must be installed into the
@@ -59,15 +64,12 @@ only if you would run its author's code directly.
 
 ## Desktop artifact verification
 
-!!! warning "Unreleased feature"
-
-    The verification described below is implemented in
-    `src/tongs/desktop/installer/` and covered by tests under
-    `tests/desktop/installer/`. No desktop
-    release has been published, so there is no signed archive, production tag,
-    attestation bundle, or release asset to download today. This section
-    documents the contract the first production release must satisfy, not an
-    artifact that exists.
+:::note[Beta]
+The desktop app is a beta. The v1.0.0 GitHub Release carries its per-user
+archive with a release manifest and attestation, and unsigned Fedora RPMs.
+This section describes how `tongs desktop install` and `update` verify the archive. See
+[Install the desktop app](/desktop/installation/).
+:::
 
 The desktop installer only accepts a release from the fixed repository
 `andre-motta/tongs`. The repository, its numeric repository and owner IDs, the
@@ -88,9 +90,9 @@ checks.
   asset ID. Duplicate asset names or IDs abort the install.
 - Each release must carry both `desktop-manifest-v1.json` and
   `desktop-manifest-v1.sigstore.json`.
-- Without an explicit `--version`, `install` takes the release whose version
-  equals the running core and stops if there is none; `update` takes the
-  highest available version. With `--version`, exactly one release must match.
+- Without `--version`, both `install` and `update` take the release whose
+  version equals the installed tongs core, and stop if there is none. With
+  `--version`, exactly one release must match.
 - Every download is an HTTPS request to an allowlisted GitHub host, size-bounded,
   and checked against the expected byte count and SHA-256.
 
@@ -152,7 +154,7 @@ an unattended install can never silently move backwards.
 
 ### What this does not cover
 
-- **First release.** The watermark starts empty, so the first accepted install
+- **First install.** The watermark starts empty, so the first accepted install
   has no previous version to compare against. Downgrade protection begins with
   the second install on a machine.
 - **No global freshness.** The watermark is local. It cannot tell you that a
@@ -165,13 +167,15 @@ an unattended install can never silently move backwards.
 - **No transport-only trust.** Conversely, TLS to GitHub alone is never treated
   as sufficient; the attestation and hash checks are what admit an artifact.
 
-### Packages
+### RPM packages
 
-The desktop RPM path is a separate distribution channel. No signed RPM, public
-package repository, or COPR channel is published. The RPM verification harness in
-`packaging/rpm/` builds and installs from a local file-backed repository with GPG
-checking disabled, which is a build-time check and not a distribution trust model.
-Do not treat it as evidence that a signed package is available.
+The Fedora RPMs are a separate channel, and the checks above do not apply to
+them. The GitHub Release attaches `tongs-desktop`, `python3-tongs`,
+`python3-tongs+mcp` and the companion packages they need, and you install them
+together with `dnf install ./*.rpm`. They are not GPG signed, and there is no
+package repository or COPR channel. The release's `SHA256SUMS` file lists a
+checksum for every asset, so you can compare the files you downloaded before
+you install them.
 
 ## Desktop process boundaries
 
@@ -180,7 +184,7 @@ Do not treat it as evidence that a signed package is available.
   policy, no service workers, and an allowlisted preload bridge. Main accepts IPC
   only from the owning web contents, its main frame, and the exact app document,
   and validates method names, parameter keys, sizes, types, and result shapes.
-- The Python sidecar is launched with a trusted absolute interpreter, a verified
+- The desktop app's Python process (its sidecar) is launched with a trusted absolute interpreter, a verified
   working directory, and fixed arguments. Its protocol uses bounded NDJSON frames,
   a fixed protocol major version, declared capabilities and methods, request
   limits, and opaque connection-local handles.

@@ -12,6 +12,7 @@ the installer-path verification, and a dry run can never reach publication.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -221,7 +222,8 @@ def test_verification_precedes_every_creating_step(
     assert lines[create].count("gh release create") == 1
     assert "--draft" in lines[create]
     assert "--verify-tag" in lines[create]
-    assert '--notes-file "docs/releases/$RELEASE_TAG.md"' in lines[create]
+    assert '--notes-file "$RELEASE_NOTES"' in lines[create]
+    assert '--notes "$RELEASE_NOTES"' in lines[verify]
     assert "--draft=false" in lines[publish]
     assert "--latest" in lines[publish]
     assert sum("gh release" in line for line in lines) == 2
@@ -275,3 +277,25 @@ def test_every_release_upload_is_retry_safe_and_retained_for_fourteen_days(
 def test_the_installer_and_the_workflow_agree_on_the_trusted_path() -> None:
     assert WORKFLOW == ROOT / ".github/workflows/release-desktop.yml"
     assert Path(OFFICIAL_WORKFLOW_PATH).name == "release-desktop.yml"
+
+
+def test_the_release_body_drops_the_site_front_matter(
+    jobs: dict[str, dict[str, Any]], tmp_path: Path
+) -> None:
+    # docs/releases/<tag>.md is also a site page with Starlight front matter.
+    # Run the workflow's own awk program on the shipped notes and require a
+    # body that starts at the prose.
+    job = jobs["release-publish"]
+    index = _step_index(job, 'test -s "docs/releases/$RELEASE_TAG.md"')
+    require = job["steps"][index]["run"]
+    match = re.search(r"awk '([^']+)'", require)
+    assert match is not None
+    notes = ROOT / "docs/releases/v1.0.0.md"
+    assert notes.read_text().startswith("---\n")
+    body = subprocess.run(
+        ["awk", match.group(1), str(notes)], check=True, capture_output=True, text=True
+    ).stdout
+    assert body.strip()
+    assert not body.startswith("---")
+    assert "slug:" not in body.split("\n\n", 1)[0]
+    assert '> "$RELEASE_NOTES"' in require

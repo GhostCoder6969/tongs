@@ -1,62 +1,76 @@
-# Discussions
+---
+title: Discussions
+description: "Every comment thread on a review in one list: filter, reply, resolve and jump to the code."
+opens: "++4++ from a review"
+---
 
-The Discussion tab (++4++ from MR detail) provides a card-based view of all
-conversations on a merge request. It complements the inline diff markers by
-showing every thread in one scrollable list.
+The Discussion tab lists every comment thread on a review as a card. The diff
+shows threads next to their lines; this tab shows all of them in one
+scrollable list. Press ++4++ from any review to open it.
 
 ## Discussion cards
 
-Each discussion card shows:
+Each card shows:
 
-- **Author** and timestamp
-- **Diff snippet** for inline discussions, showing the surrounding code context
-- **Full Markdown-rendered thread** with all replies
-- **Resolution status** for resolvable threads (GitHub and GitLab)
+- the file and line for an inline thread, or `[general]` for a thread on the
+  whole review
+- the reply count and when the thread started
+- a few lines of the diff around an inline thread, with the commented line
+  marked
+- the whole thread, each comment with its author and rendered as Markdown
+- the keys that apply to it, including Resolve or Unresolve when the forge
+  allows resolving that thread
+
+Open threads come first, sorted by file and line. General threads follow the
+inline ones, and resolved threads come last, dimmed.
 
 ## Navigation
 
 | Key | Action |
 |-----|--------|
-| ++j++ / ++k++ | Move between discussion cards |
-| ++close-bracket++ / ++open-bracket++ | Jump to next / previous unresolved discussion |
-| ++enter++ | Jump to the diff location (inline discussions only) |
+| ++j++ / ++k++ | Move between cards (++down++ and ++up++ work too) |
+| ++close-bracket++ / ++open-bracket++ | Jump to the next or previous unresolved thread |
+| ++enter++ | Jump to the thread in the diff (inline threads only) |
 
-Pressing ++enter++ on an inline discussion switches to the Diff tab and scrolls
-to the exact line where the comment was left.
+++enter++ on an inline thread switches to the Diff tab and moves to the line
+the comment is on.
 
 ## Filtering
 
-Press ++f++ to cycle through filter modes:
+Press ++f++ to cycle the filter:
 
 | Filter | Shows |
 |--------|-------|
-| All | Every discussion thread |
+| All | Every thread |
 | Unresolved | Only unresolved threads |
 | Resolved | Only resolved threads |
 
 ## Replying
 
-Press ++r++ on any discussion card to open the comment editor and post a reply to
-that thread. The reply is submitted to the forge and appended to the card
-immediately.
+Press ++r++ on a card to open the comment editor and reply to that thread.
+Press ++ctrl+s++ to post the reply. tongs confirms it with a notification, and
+the thread shows the reply the next time the tab loads.
 
 ## Resolving threads
 
-Press ++r+shift++ (uppercase R) on a discussion to toggle its resolution status.
-This requires a double-press to confirm. Resolution is supported on both
-GitHub and GitLab.
+Press ++shift+r++ on a card to resolve the thread, or to reopen a resolved one.
+tongs asks you to press ++shift+r++ a second time to confirm. Resolving works
+on both GitHub and GitLab, for threads the forge allows you to resolve.
 
-## General MR comments
+## General comments
 
-Press ++c++ from the Overview tab (++1++) to post a top-level comment on the MR
-that is not attached to any specific line.
+To comment on the review as a whole rather than a line, press ++c++ on the
+Overview tab (++1++).
 
-## Cross-tab workflow
+## A review pass through the threads
 
-A typical review workflow using discussions:
+1. Open the Discussion tab and press ++f++ to show unresolved threads.
+2. Press ++enter++ on a thread to jump to its line in the diff.
+3. Read the code around it.
+4. Press ++r++ to reply, or ++shift+r++ twice to resolve.
+5. Press ++4++ to return to the Discussion tab and move to the next thread.
 
-1. Open the **Discussion tab** to scan unresolved threads
-2. Press ++enter++ on a thread to jump to its location in the diff
-3. Review the surrounding code in context
-4. Press ++r++ to reply, or ++r+shift++ to resolve
-5. Press ++4++ to return to the Discussion tab and continue
+:::tip[Review drafts]
+While a review draft is open (++ctrl+g++), replies go into the draft and are
+posted when you submit it. See [Review drafts](/guides/review-drafts/).
+:::

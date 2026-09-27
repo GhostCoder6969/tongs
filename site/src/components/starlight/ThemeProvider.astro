@@ -1,0 +1,16 @@
+---
+// Replaces Starlight's ThemeProvider. Same key, values and first-paint
+// behavior, but the storage read is guarded: when site data is blocked,
+// localStorage throws, and the page falls back to the system scheme instead
+// of failing into the hard-coded dark theme. Matches Plain.astro's script.
+---
+
+<script is:inline>
+  window.StarlightThemeProvider = (() => {
+    var stored = '';
+    try { stored = localStorage.getItem('starlight-theme') || ''; } catch (e) {}
+    var theme = stored || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+    return { updatePickers() {} };
+  })();
+</script>

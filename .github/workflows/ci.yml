@@ -86,19 +86,28 @@ jobs:
         with:
           ref: ${{ env.TONGS_CHECKED_OUT_SHA }}
           persist-credentials: false
-      - name: Set up Python 3.12
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
-      - name: Install the pinned documentation toolchain
-        run: python -m pip install mkdocs==1.6.1 mkdocs-material==9.7.7
-      - name: Build the documentation site strictly
-        run: mkdocs build --strict --site-dir "$RUNNER_TEMP/site"
+      # The same build docs.yml deploys, without the upload.  The links
+      # validator fails the build on a broken page link or anchor.
       - name: Set up Node.js 22
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           package-manager-cache: false
+      - name: Install the locked site dependencies
+        run: npm ci --prefix site
+      - name: Build the site with strict link validation
+        run: npm run build --prefix site
+      - name: Check the custom domain and the repository-only records
+        run: |
+          set -euo pipefail
+          grep -qx 'www.tongs.tools' site/dist/CNAME
+          for record in sdlc site-plan work; do
+            test ! -e "site/dist/$record"
+          done
+          if grep -qiE '/(sdlc|site-plan|work)/' site/dist/sitemap*.xml 2>/dev/null; then
+            echo "A repository-only record reached the sitemap" >&2
+            exit 1
+          fi
       - name: Install the pinned Markdown linter from its lockfile
         run: npm ci --prefix .github/linters --ignore-scripts --no-audit --no-fund
       - name: Lint Markdown

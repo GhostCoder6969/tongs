@@ -505,7 +505,7 @@ there was nothing left to re-run; that is fixture decay, not a defect. S58 needs
 the terminal client, which was not started in that session.
 
 Defects raised or reopened during the session are listed for users in
-[Known limitations](../desktop/known-limitations.md). The session record's defect
+[Known issues](../releases/known-issues.md). The session record's defect
 table was renumbered against the tracker on 2026-09-10 and now agrees with it, so
 the two can be read against each other directly.
 

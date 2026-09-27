@@ -8,5 +8,7 @@ build/
 .ruff_cache/
 *.egg
 .tox/
-site/
+site/dist/
+site/node_modules/
+site/.astro/
 tongs-test-sandbox/

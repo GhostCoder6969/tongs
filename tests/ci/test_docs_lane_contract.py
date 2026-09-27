@@ -1,6 +1,6 @@
 """Pin the Markdown lint step of the ``ci.yml`` docs lane.
 
-The docs job's mkdocs steps are pinned by ``test_production_workflow_contract``.
+The docs job's site build steps are pinned by ``test_production_workflow_contract``.
 This module owns the rest of the job: the ``Lint Markdown`` step, the pinned
 markdownlint-cli2 install under ``.github/linters`` and the job's read-only
 permissions.  The linter is installed with ``npm ci`` from a committed
@@ -27,7 +27,7 @@ CONFIG = ".github/linters/.markdownlint-cli2.jsonc"
 LINTER = "markdownlint-cli2"
 LINTER_BIN = f".github/linters/node_modules/.bin/{LINTER}"
 LINT_STEP = "Lint Markdown"
-MKDOCS_BUILD = 'mkdocs build --strict --site-dir "$RUNNER_TEMP/site"'
+SITE_BUILD = "npm run build --prefix site"
 LINT_GLOBS = ("docs/**/*.md", "*.md")
 REGISTRY = "https://registry.npmjs.org/"
 
@@ -51,13 +51,13 @@ def _pinned_version() -> str:
     return package["devDependencies"][LINTER]
 
 
-def test_the_lint_step_runs_after_the_strict_mkdocs_build(
+def test_the_lint_step_runs_after_the_site_build(
     docs_job: dict[str, Any],
 ) -> None:
     names = [step.get("name") for step in docs_job["steps"]]
     commands = [step.get("run") for step in docs_job["steps"]]
     assert names.count(LINT_STEP) == 1
-    assert names.index(LINT_STEP) > commands.index(MKDOCS_BUILD)
+    assert names.index(LINT_STEP) > commands.index(SITE_BUILD)
     assert names[-1] == LINT_STEP
 
 
@@ -80,7 +80,7 @@ def test_the_lint_globs_cover_docs_and_root_markdown(
     for pattern in globs:
         covered.update(ROOT.glob(pattern))
     expected = set((ROOT / "docs").rglob("*.md")) | set(ROOT.glob("*.md"))
-    # Everything under docs/ is linted, including files mkdocs.yml leaves out
+    # Everything under docs/ is linted, including files the site build leaves out
     # of the site. Checked by walking the tree, not by naming files, so docs
     # edits never need the core lane to keep this test honest.
     assert covered == expected
@@ -90,17 +90,21 @@ def test_the_install_is_a_lockfile_npm_ci_under_the_linters_directory(
     docs_job: dict[str, Any],
 ) -> None:
     commands = [shlex.split(step["run"]) for step in docs_job["steps"] if "run" in step]
-    installs = [argv for argv in commands if argv[:1] == ["npm"]]
+    # The site build has its own npm ci; only the linter install is owned here.
+    installs = [
+        argv
+        for argv in commands
+        if argv[:1] == ["npm"] and argv[argv.index("--prefix") + 1] == ".github/linters"
+    ]
     assert len(installs) == 1
     (install,) = installs
     assert install[:2] == ["npm", "ci"]
-    assert install[install.index("--prefix") + 1] == ".github/linters"
     assert "--ignore-scripts" in install
     lint_index = [step.get("name") for step in docs_job["steps"]].index(LINT_STEP)
     install_index = next(
         index
         for index, step in enumerate(docs_job["steps"])
-        if step.get("run", "").startswith("npm ci")
+        if step.get("run", "").startswith("npm ci --prefix .github/linters")
     )
     assert install_index < lint_index
 

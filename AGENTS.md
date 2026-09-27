@@ -3,8 +3,8 @@
 Terminal-first multi-forge MR/CI management with a Textual UI and an optional
 production Electron desktop UI. Both frontends use the same Python application
 services, forge clients, repository discovery, cache, and durable review drafts.
-Python 3.12+ is required for the core; building the desktop shell requires
-Node.js 22.12+.
+Python 3.12+ is required for the core; building the desktop shell or the
+documentation site requires Node.js 22.12+.
 
 ## Agent Workflow
 
@@ -32,7 +32,7 @@ This file is the shared repository guide for coding agents; every agent that wor
 - **Distribution:** `pipx install tongs`, `uvx tongs`, `uv tool install tongs`, or the unreleased Fedora RPMs `python3-tongs`, `python3-tongs+mcp` and `tongs-desktop`
 - **Entry points:** `tongs` (TUI), `tongs-mcp` (MCP server), `tongs desktop` and the `tongs --install-desktop` alias (per-user desktop lifecycle), and the RPM-owned `/usr/libexec/tongs-desktop` launcher
 - **Plugins:** independent `tongs.plugins` and `tongs.desktop_plugins` entry-point groups
-- **Docs:** MkDocs Material site at [www.tongs.tools](https://www.tongs.tools). `docs/SDLC.md`, `docs/site-plan.md` and `docs/work/` are excluded from the build and stay repository-only; everything else under `docs/` is published.
+- **Docs:** Astro and Starlight site in `site/`, published at [www.tongs.tools](https://www.tongs.tools). The Markdown stays in `docs/`, reached through the committed symlink `site/src/content/docs -> ../../../docs`. The content collection glob in `site/src/content.config.ts` excludes `docs/SDLC.md`, `docs/site-plan.md` and `docs/work/`, which stay repository-only; everything else under `docs/` is published. `starlight-links-validator` fails the build on a broken page link or anchor.
 
 ## Critical Rules
 
@@ -63,6 +63,10 @@ ruff format --check src/ tests/
 npm ci --prefix desktop
 npm run build --prefix desktop
 TONGS_TEST_PYTHON="$(command -v python)" npm test --prefix desktop
+
+# Documentation site install and strict build (output in site/dist)
+npm ci --prefix site
+npm run build --prefix site
 ```
 
 If using `uv`, create the environment with `uv venv --python 3.12`, activate it, and use `uv pip install` in place of `python -m pip install`. Dependency installation may need network access; the mocked tests do not. Ruff is installed explicitly because it is not currently included in the `dev` extra. The `mcp` extra is needed to run MCP tests instead of skipping them.
@@ -81,7 +85,9 @@ text, attributes, counts, serialized payloads, and numeric rectangles instead.
 Never build a scratch worktree with the fix reverted to prove a test would have
 caught a bug: reason from the diff, because those runs are unbounded and are the
 usual cause of an out-of-memory kill. A successful headless test run is separate
-from native Fedora, GPU, installer, and release evidence.
+from native Fedora, GPU, installer, and release evidence. The documentation
+site's `npm ci` and `npm run build` run under the same guard; the build needs
+about 0.5 GiB.
 
 - `from __future__ import annotations` at the top of every module
 - Module-level imports unless function-level is necessary to avoid circular deps
@@ -120,6 +126,10 @@ desktop/src/
   preload/                 # Allowlisted context-isolated renderer bridge
   renderer/                # React application, features, navigation, and presentation
   shared/                  # Typed bridge, review, CI, and utility contracts
+
+docs/                      # Site Markdown; SDLC.md, site-plan.md and work/ stay repository-only
+site/                      # Astro + Starlight site and homepage; builds to site/dist with CNAME
+  src/content/docs         # Committed symlink to ../../../docs
 
 tests/
   desktop/                 # Python protocol/installer plus Electron, renderer, and native fixtures
@@ -177,9 +187,12 @@ prove the same source rebuild, companion closure, lifecycle and byte-identical
 rebuild against the receipt-bound fresh archive whenever the `packaging` lane
 is selected.
 
-`docs.yml` deploys the site on a push to `main` or a manual
-`workflow_dispatch`. On pull requests the `docs` lane of `ci.yml` runs
-`mkdocs build --strict` and the pinned Markdown linter.
+`docs.yml` builds `site/` with `npm ci --prefix site` and
+`npm run build --prefix site` and deploys `site/dist` to GitHub Pages, but only
+on a push to `main` or a manual `workflow_dispatch`. On pull requests the
+`docs` lane of `ci.yml` runs the same build, without a deploy, and the pinned
+Markdown linter. Run the build locally, under the Node memory guard, before
+submitting a `docs/` or `site/` change.
 
 `publish.yml` and `release-desktop.yml` run on stable `vX.Y.Z` tags: the first
 publishes the core to PyPI, the second builds, attests and publishes the desktop

@@ -1,0 +1,39 @@
+---
+// Header override: live wordmark, the five section links (the current one
+// underlined), Search, GitHub and the theme button. The mobile menu toggle
+// stays Starlight's own (rendered by PageFrame), restyled in docs.css.
+import Search from '@astrojs/starlight/components/Search.astro';
+import SiteTitle from 'virtual:starlight/components/SiteTitle';
+import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
+import NavLinks from '../NavLinks.astro';
+import { groupOf, site } from '../../data/nav.mjs';
+
+const current = groupOf(Astro.locals.starlightRoute.id)?.label;
+---
+
+<div class="tongs-header">
+  <SiteTitle />
+  <NavLinks current={current} />
+  <div class="tools">
+    <Search />
+    <a class="tool-link" href={site.repo}>GitHub</a>
+    <ThemeSelect />
+  </div>
+</div>
+
+<script>
+  // "/" opens search, as on the homepage. Ignored while typing.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement as HTMLElement | null;
+    if (el && (/^(input|textarea|select)$/i.test(el.tagName) || el.isContentEditable)) return;
+    const open = document.querySelector<HTMLButtonElement>('site-search button[data-open-modal]');
+    if (open && !open.disabled) {
+      e.preventDefault();
+      open.click();
+    }
+  });
+  // Starlight declares only Control+K (or Meta+K on Apple); "/" opens it too.
+  const searchBtn = document.querySelector('site-search button[data-open-modal]');
+  if (searchBtn) searchBtn.setAttribute('aria-keyshortcuts', '/ ' + (searchBtn.getAttribute('aria-keyshortcuts') || 'Control+K'));
+</script>
